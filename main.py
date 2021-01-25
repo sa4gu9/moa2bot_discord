@@ -17,7 +17,7 @@ intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
 token=""
 
-testint=1
+testint=0
 cred=None
 db=None
 
