@@ -37,8 +37,9 @@ db = firestore.client()
 
 @bot.event
 async def on_ready():
-    channel=bot.get_channel(709647685417697372)
-    await channel.send("moa2bot test")
+    if testint==1:
+        channel=bot.get_channel(709647685417697372)
+        await channel.send("moa2bot test")
     await bot.change_presence(status=discord.Status.online,activity=discord.Game(version))
 
 @bot.command()
