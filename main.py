@@ -44,8 +44,6 @@ async def on_ready():
 
 @bot.command()
 async def 가입(ctx,nickname) :
-    channel=bot.get_channel(709647685417697372)
-
     random_pool=string.ascii_lowercase+string.digits
     code=""
 
@@ -56,7 +54,7 @@ async def 가입(ctx,nickname) :
 
     doc = doc_ref.get()
     if doc.exists:
-        await channel.send(f"이미 가입하였습니다.")
+        await ctx.send(f"이미 가입하였습니다.")
     else:
         doc_ref.set({
             u'equiptitle':0,
@@ -64,7 +62,7 @@ async def 가입(ctx,nickname) :
             u'money': 5000,
             u'titles': 0,
         })
-        await channel.send(f"가입 완료 '[첫 시작]{nickname}#{code}'")
+        await ctx.send(f"가입 완료 '[첫 시작]{nickname}#{code}'")
 
 
 def get_chance_multiple(mode) :
