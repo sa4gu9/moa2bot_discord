@@ -11,7 +11,7 @@ from firebase_admin import firestore
 import math
 
 
-version="V2.21.01.01"
+version="V2.21.01.02"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -50,7 +50,8 @@ async def 가입(ctx,nickname) :
     for i in random.sample(random_pool,5):
         code+=i
 
-    doc_ref = db.collection(u'users').document(f'{ctx.author.id}')
+    doc_ref = db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
+    print(ctx.guild.id)
 
     doc = doc_ref.get()
     if doc.exists:
@@ -60,7 +61,7 @@ async def 가입(ctx,nickname) :
             u'equiptitle':0,
             u'nickname':f"{nickname}#{code}",
             u'money': 5000,
-            u'titles': 0,
+            u'titles': {0},
         })
         await ctx.send(f"가입 완료 '[첫 시작]{nickname}#{code}'")
 
@@ -95,7 +96,7 @@ def get_chance_multiple(mode) :
 @bot.command()
 async def 베팅(ctx,mode=None,moa=10000) :
     bonusback=0
-    doc_ref = db.collection(u'users').document(f'{ctx.author.id}')
+    doc_ref = db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
 
     doc = doc_ref.get()
     if doc.exists:
@@ -178,7 +179,7 @@ def GetBeggingMoa():
 
 @bot.command()
 async def 구걸(ctx) :
-    doc_ref = db.collection(u'users').document(f'{ctx.author.id}')
+    doc_ref = db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
 
     doc = doc_ref.get()
     if doc.exists:
@@ -204,7 +205,7 @@ async def 구걸(ctx) :
 
 @bot.command()
 async def 자산(ctx):
-    doc_ref = db.collection(u'users').document(f'{ctx.author.id}')
+    doc_ref = db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
 
     doc = doc_ref.get()
     if doc.exists:
