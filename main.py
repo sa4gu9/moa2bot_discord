@@ -145,13 +145,6 @@ async def 베팅(ctx,mode=None,moa=10000) :
         doc_ref.set({
             'money': money+profit-lose+bonusback
         }, merge=True)
-        
-        
-
-
-        
-        await ctx.send()
-        
     else:
         await ctx.send(f"가입이 필요합니다.")
 
