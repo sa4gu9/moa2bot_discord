@@ -11,7 +11,7 @@ from firebase_admin import firestore
 import math
 
 
-version="V2.21.01.02"
+version="V2.21.01.03"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -45,10 +45,15 @@ async def on_ready():
 @bot.command()
 async def 가입(ctx,nickname) :
     random_pool=string.ascii_lowercase+string.digits
+    password_pool=random_pool+string.ascii_uppercase
     code=""
+    password=""
 
     for i in random.sample(random_pool,5):
         code+=i
+    
+    for i in random.sample(password_pool,15):
+        password+=i
 
     doc_ref = db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
     print(ctx.guild.id)
@@ -58,12 +63,13 @@ async def 가입(ctx,nickname) :
         await ctx.send(f"이미 가입하였습니다.")
     else:
         doc_ref.set({
-            u'equiptitle':0,
-            u'nickname':f"{nickname}#{code}",
+            u'nickname':f"[첫 시작]{nickname}#{code}",
             u'money': 5000,
             u'titles': {0},
+            u'password': password,
         })
         await ctx.send(f"가입 완료 '[첫 시작]{nickname}#{code}'")
+        await ctx.author.send(f"가입 완료, 당신의 비밀번호는 {password}입니다.")
 
 
 def get_chance_multiple(mode) :
@@ -103,6 +109,9 @@ async def 베팅(ctx,mode=None,moa=10000) :
         money=doc.to_dict()['money']
         nickname=doc.to_dict()['nickname']
 
+        if money<=0:
+            await ctx.send("Not having money for betting")
+
         if mode==None:
             await ctx.send("모드를 입력해주세요.")
             return
@@ -114,6 +123,8 @@ async def 베팅(ctx,mode=None,moa=10000) :
                 await ctx.send("베팅 6,7은 금액 입력을 할 수 없습니다. 6-절반 7-올인")
                 return
 
+        
+
 
         if int(mode)>7 or int(mode)<1 : 
             await ctx.send('모드를 잘못 입력했습니다.')
@@ -121,7 +132,7 @@ async def 베팅(ctx,mode=None,moa=10000) :
 
 
         if money<int(moa) or int(moa)<0 : 
-            await ctx.send("보유량보다 많거나 0원 미만으로 베팅하실 수 없습니다.")
+            await ctx.send("보유량보다 많거나 0원 이하로 베팅하실 수 없습니다.")
             return
         
 
@@ -187,7 +198,7 @@ async def 구걸(ctx) :
             return
 
         doc_ref.set({
-            'money': getmoa
+            'money': money+getmoa
         }, merge=True)
 
         await ctx.send(f"{nickname} {getmoa}모아 획득!")
@@ -209,6 +220,102 @@ async def 자산(ctx):
     else:
         await ctx.send(f"가입이 필요합니다.")
 
+
+@bot.command()
+async def 비밀번호(ctx) :
+    doc_ref = db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
+    
+    doc = doc_ref.get()
+    if doc.exists:
+        password=doc.to_dict()['password']
+
+        await ctx.auhor.send(f"당신의 비밀번호는 {password}")
+    else:
+        await ctx.send(f"가입이 필요합니다.")
+
+@bot.command()
+async def 상자구매(ctx):
+    doc_ref = db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
+    
+
+    doc = doc_ref.get()
+
+    money=doc.to_dict()['money']
+    nickname=doc.to_dict()['nickname']
+
+    
+
+    itemgrade=0
+    itemlevel=0
+
+    minlevel=[1,5,10,15,20,25]
+    maxlevel=[5,10,20,30,30,30]  
+
+    if money>=20000:
+        doc_ref.set({
+            'money': money-20000
+        }, merge=True)
+
+        result=random.random()*100
+        if result<51:
+            itemgrade=1
+        elif result<82:
+            itemgrade=2
+        elif result<93:
+            itemgrade=3
+        elif result<97:
+            itemgrade=4
+        elif result<99:
+            itemgrade=5
+        else:
+            itemgrade=6
+
+        result=random.random()*100
+
+        if result<40:
+            itemlevel=minlevel[itemgrade-1]
+        elif result<70:
+            itemlevel=minlevel[itemgrade-1]+1
+        elif result<90:
+            itemlevel=minlevel[itemgrade-1]+2
+        else:
+            itemlevel=random.randint(minlevel[itemgrade-1]+3,maxlevel[itemgrade-1])
+
+        unknown_ref=doc_ref.collection(u'의문의 물건')
+
+        unknown_dict=unknown_ref.document(f'등급{itemgrade}').get().to_dict()
+        print(unknown_dict)
+
+
+        if unknown_dict == None:
+            unknown_dict={}
+            unknown_dict[str(itemlevel)]=1
+        else:
+            if str(itemlevel) in dict(unknown_dict).keys():
+                unknown_dict[str(itemlevel)]+=1
+            else:
+                unknown_dict[str(itemlevel)]=1
+
+        print(unknown_dict)
+
+        unknown_ref.document(f'등급{itemgrade}').set(unknown_dict,merge=True)
+      
+
+        if itemlevel==30 and itemgrade==6 :
+            doc_ref.update({u'titles': firestore.ArrayUnion([1])})
+            await ctx.send(f"{nickname} 칭호 [완벽을 뽑은 자] 획득")
+
+        await ctx.send(f"의문의 물건 등급{itemgrade} {itemlevel}강 획득!")
+    else:
+        await ctx.send(f"상자를 구매할수 없습니다. {20000-money}모아가 부족합니다.")
+    
+
+@bot.command()
+async def 강화(ctx):
+
+    embed=discord.Embed(title="보유중인 의문의 물건")
+
+    await ctx.send("준비중입니다.")
 
 
 
