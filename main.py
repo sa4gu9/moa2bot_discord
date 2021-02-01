@@ -9,9 +9,10 @@ import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
 import math
+import traceback
 
 
-version="V2.21.01.03"
+version="V2.21.02.01"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -76,26 +77,17 @@ def get_chance_multiple(mode) :
     chance=0
     multiple=0
     if mode==1 : 
-        chance=80
-        multiple=1.2
-    elif mode==2 : 
-        chance=64
-        multiple=1.6
-    elif mode==3 : 
-        chance=48
-        multiple=2.2
-    elif mode==4 : 
-        chance=32
-        multiple=3
-    elif mode==5 : 
-        chance=16
-        multiple=4
-    elif mode==6:
-        chance=45
+        chance=40
         multiple=2
-    elif mode==7 :
-        chance=50
+    elif mode==2 : 
+        chance=30
         multiple=3
+    elif mode==3 : 
+        chance=20
+        multiple=4
+    elif mode==4 : 
+        chance=30
+        multiple=5
            
     return chance,multiple
 
@@ -110,23 +102,20 @@ async def 베팅(ctx,mode=None,moa=10000) :
         nickname=doc.to_dict()['nickname']
 
         if money<=0:
-            await ctx.send("Not having money for betting")
+            await ctx.send("베팅할 모아가 없습니다.")
 
         if mode==None:
             await ctx.send("모드를 입력해주세요.")
             return
 
-        if int(mode)==6 or int(mode)==7:
+        if int(mode)==4:
             if moa==10000:
-                moa=math.floor(money*0.5*(int(mode)-5))
+                moa=money
             else :
-                await ctx.send("베팅 6,7은 금액 입력을 할 수 없습니다. 6-절반 7-올인")
+                await ctx.send("베팅 4는 금액 입력을 할 수 없습니다. 올인만 가능합니다.")
                 return
 
-        
-
-
-        if int(mode)>7 or int(mode)<1 : 
+        if int(mode)>4 or int(mode)<1 : 
             await ctx.send('모드를 잘못 입력했습니다.')
             return
 
@@ -311,11 +300,126 @@ async def 상자구매(ctx):
     
 
 @bot.command()
-async def 강화(ctx):
+async def 강화(ctx,grade=None,level=None):
+    try:
+        minlevel=[1,5,10,15,20,25]
+        maxlevel=[5,10,20,30,30,30]
 
-    embed=discord.Embed(title="보유중인 의문의 물건")
 
-    await ctx.send("준비중입니다.")
+        grade=int(grade)
+        
+
+        
+
+        if grade<1 or grade>6:
+            await ctx.send("의문의 물건은 1~6등급입니다.")
+
+        user_ref= db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
+        unknown_have = user_ref.collection(u'의문의 물건').document(f'등급{grade}').get().to_dict()
+
+        if unknown_have==None:
+            await ctx.send("입력한 등급의 의문의 물건을 가지고 있지 않습니다.")
+            return
+
+        if level==None:
+            #보유중인 의문의 물건을 보여줌
+            embed=discord.Embed(title=f"보유중인 의문의 물건 등급{grade}")      
+
+            for i in unknown_have.keys():
+                embed.add_field(name=f"+{i}",value=unknown_have[i]) 
+            await ctx.send(embed=embed)
+
+        else:
+            level=int(level)
+
+            if level>maxlevel[grade-1] or level<minlevel[grade-1]:
+                await ctx.send(f"등급{grade}는 {minlevel[grade-1]}강이상 +{maxlevel[grade-1]}강이하 입니다.")
+                return
+
+            if level==maxlevel[grade-1] :
+                if grade<6:
+                    await ctx.send("현재 레벨은 현재 등급의 최고 레벨입니다. 등급업을 해주세요.")
+                    return
+                elif grade==6 :
+                    await ctx.send("최고 등급의 최고 레벨은 강화를 할 수 없습니다.")
+                    return
+            
+
+            if str(level) in unknown_have.keys():
+                money=user_ref.get().to_dict()['money']
+
+                #강화 비용을 구한다.
+                price=math.floor(1000*((50*level)**(0.05*level)))
+
+
+                #가지고 있는 돈보다 강화 비용이 많으면 강화 불가
+                if price>money:
+                    await ctx.send(f"{price-money}모아가 부족합니다. 강화 비용 : {price}모아")
+                    return
+
+                sucnum=2.77
+                failnum=1.53
+                desnum=0.56
+
+                #강화 확률을 구한다.
+                success=100-sucnum*level
+                fail=(level-1)*failnum
+                destroy=(level-1)*desnum
+                notchange=100-success-fail-destroy
+
+
+                #강화를 한다.
+                result=random.random()*100
+                change=0
+
+                if result<success:
+                    change=1
+                elif result<success+notchange:
+                    change=0
+                elif result<success+notchange+fail:
+                    change=-1
+                else:
+                    change=-10
+
+                #change값에 따라 dictionary를 바꾼다. 단, change가 0이면 바꾸지 않는다.
+                print(unknown_have)
+
+                unknown_have[str(level)]-=1
+                
+                if unknown_have[str(level)]==0:
+                    del unknown_have[str(level)]
+                
+                if change!=0 or change!=-10:
+                    if str(level+change) in unknown_have.keys():
+                        unknown_have[str(level+change)]+=1
+                    else:
+                        unknown_have[str(level+change)]=1
+                elif change==-10 :
+                    unknown_have[str(level+change)]-=1
+
+                print(unknown_have)
+                
+
+
+                #현재 가지고 있는 돈에서 강화비용을 빼고 firebase에 올린다.
+                user_ref.set({
+                    'money': money-price
+                }, merge=True)
+
+                
+                #바꾼 dictionary를 firebase에 올린다. 단, change가 0이면 바꾸지 않는다.
+                if change!=0:
+                    user_ref.collection(u'의문의 물건').document(f'등급{grade}').set(unknown_have)
+
+                await ctx.send(f"change : {change}")
+
+            else:
+                await ctx.send("입력한 레벨의 의문의 물건을 가지고 있지 않습니다.")
+
+    except Exception as e :
+        print(traceback.print_exc())
+        await ctx.send("의문의 물건 등급 또는 레벨을 숫자로 입력해주세요.")
+
 
 
 
