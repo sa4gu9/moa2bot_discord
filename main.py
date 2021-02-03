@@ -13,7 +13,7 @@ import traceback
 from discord.ext import tasks
 
 
-version="V2.21.02.02"
+version="V2.21.02.03"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -78,7 +78,7 @@ async def 가입(ctx,nickname) :
     if doc.exists:
         await ctx.send(f"이미 가입하였습니다.")
     else:
-        fin_ref=user_ref.collection(u'자산')
+        fin_ref=doc_ref.collection(u'자산')
 
         doc_ref.set({
             u'nickname':f"[첫 시작]{nickname}#{code}",
@@ -87,7 +87,7 @@ async def 가입(ctx,nickname) :
         })
 
         fin_ref.document('moa').set({
-            'money':money
+            'money':20000
         })
 
         await ctx.send(f"가입 완료 '[첫 시작]{nickname}#{code}'")
@@ -730,6 +730,6 @@ def ChangeMoney(ctx,money,change):
 
 @bot.command()
 async def 상점(ctx):
-     store_ref= db.collection(u'servers').document(f'{ctx.guild.id}').collection('store')
+    store_ref= db.collection(u'servers').document(f'{ctx.guild.id}').collection('store')
 
 bot.run(token)
