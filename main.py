@@ -13,7 +13,7 @@ import traceback
 from discord.ext import tasks
 
 
-version="V2.21.02.04"
+version="V2.21.02.05"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -54,7 +54,7 @@ db = firestore.client()
 @bot.event
 async def on_ready():
     if testint==1:
-        channel=bot.get_channel(709647685417697372)
+        channel=bot.get_channel(805826344842952775)
         await channel.send("moa2bot test")
     test.start()
     await bot.change_presence(status=discord.Status.online,activity=discord.Game(version))
@@ -501,15 +501,35 @@ def check(user_ref,fin_ref):
 
 
 @bot.command()
-async def 코인(ctx,mode=None,amount=None):
+async def 코인(ctx,coinnName=None,mode=None,amount=None):
     try:
-        coin_ref=db.collection(u'coins').document(f'moacoin')
-        cantrade=coin_ref.get().to_dict()['cantrade']
+        coin_ref=db.collection(u'coins')
+        
 
+        selectCoin_ref=None
         user_info=None
         money=None
+        turn=None
+        user_turn=None
+        
 
-        price=coin_ref.get().to_dict()['price']
+        coindata=None
+
+        if coinnName!=None:
+            selectCoin_ref=coin_ref.document(coinnName)
+            coindata=selectCoin_ref.get().to_dict()
+        else:
+            docs=coin_ref.stream()
+            embed=discord.Embed(title=f"코인 현황")
+            for doc in docs:
+                data=doc.to_dict()
+                embed.add_field(name=doc.id,value=f"{data['price']}\n{data['last']}")
+            await ctx.send(embed=embed)
+            return
+
+        cantrade=coindata['cantrade']
+
+        price=coindata['price']
 
         user_ref= db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
         fin_ref=user_ref.collection(u'자산')
@@ -517,19 +537,37 @@ async def 코인(ctx,mode=None,amount=None):
         check(user_ref,fin_ref)
 
         money,nickname=ReturnInfo(ctx)
+        userDict=fin_ref.document('coins').get().to_dict()
 
-        if fin_ref.document('coins').get().to_dict() == None:
+        if userDict == None:
             have=0
         else:
-            have=fin_ref.document('coins').get().to_dict()['moacoin']
+            have=userDict[f'{coinnName}']
+            user_turn=userDict[f'{coinnName}_turn']
 
         if mode==None:
-            strike=coin_ref.get().to_dict()['strike']
-            last=coin_ref.get().to_dict()['last']
-            await ctx.send(f"현재 가격 : {price} 연속 상승 횟수 : {strike} 가격 변화 : {last}")
+            strike=coindata['strike']
+            last=coindata['last']
+
+            if price<=0:
+                await ctx.send(f"상장폐지로 인해 가격을 확인할수 없습니다.")
+            else:
+                await ctx.send(f"현재 가격 : {price} 연속 상승 횟수 : {strike} 가격 변화 : {last}")
             return
+
         if not cantrade:
             await ctx.send("거래를 할수없는 시간입니다.(거래 가능 시간 : 오전 10시 ~ 오후 10시)")
+            return
+
+        turn=coindata['turn']
+        user_turn=coindata['turn']
+
+        if turn>user_turn and have>0:
+            await ctx.send(f"가지고 있던 {turn}번째 {coinnName}이 상장폐지가 되었습니다.")
+            fin_ref.document('coins').set({
+                f'{coinnName}':0,
+                f'{coinnName}_turn':turn,
+            },merge=True)
             return
 
         amount=int(amount)
@@ -540,14 +578,15 @@ async def 코인(ctx,mode=None,amount=None):
             if money>=amount*price:
                 #구매한다
                 fin_ref.document('coins').set({
-                    'moacoin':have+amount
+                    f'{coinnName}':have+amount,
+                    f'{coinnName}_turn':turn,
                 },merge=True)
 
                 fin_ref.document('moa').set({
                     'money':money-price*amount
                 },merge=True)
 
-                await ctx.send(f"moacoin {amount}개 구입 완료")
+                await ctx.send(f"moacoin {amount}개 구입 완료 {have+amount}개 보유중")
             else:
                 await ctx.send(f"{amount*price-money}모아가 부족합니다.")
 
@@ -559,11 +598,12 @@ async def 코인(ctx,mode=None,amount=None):
                 have=fin_ref.document('coins').get().to_dict()['moacoin']
 
             if amount>have:
-                await ctx.send(f"코인이 {amount-have}개 부족합니다.")
+                await ctx.send(f"코인이 {amount-have}개 부족합니다. {have}개 보유중")
                 return
 
             fin_ref.document('coins').set({
-                'moacoin':have-amount
+                f'{coinnName}':have-amount,
+                f'{coinnName}_turn':turn,
             },merge=True)
 
             fin_ref.document('moa').set({
@@ -571,7 +611,7 @@ async def 코인(ctx,mode=None,amount=None):
             },merge=True)
             
 
-            await ctx.send(f"moacoin {amount}개 판매 완료")
+            await ctx.send(f"moacoin {amount}개 판매 완료 {have-amount}개 보유중")
             
         else :
             await ctx.send("모드를 buy 또는 sell로 입력해주세요.")
@@ -585,123 +625,137 @@ async def 코인(ctx,mode=None,amount=None):
 @tasks.loop(seconds=10)
 async def test():
     date=datetime.datetime.now()
-    coin_ref=db.collection(u'coins').document(f'moacoin')
-
-    coin_info=coin_ref.get().to_dict()
-
-    price=0
-
-    if not coin_info==None: 
-        cantrade=coin_info['cantrade']
-        price=coin_info['price']
-        strike=coin_info['strike']
-        maxprice=coin_info['maxprice']
-        minprice=coin_info['minprice']
-    
-
-    
-    if date.hour==10 and date.minute==0 and date.second>=0 and date.second<10:
-        if coin_info == None or price<=0:
-            coin_ref.set({
-                "price":20000,
-                "minprice":20000,
-                "maxprice":20000,
-                "strike":0,
-                "last":0,
-                "cantrade":True
-            },merge=True)
-        else:
-            coin_ref.set({
-                "cantrade":True
-            },merge=True)
-        return
-    elif coin_ref.get().to_dict()==None:
-        return
-    
-
-    if date.hour==22 and date.minute==0 and date.second>=0 and date.second<10:
-        coin_ref.set({
-            "cantrade":False
-        },merge=True)
-        return
 
 
-
-    if (date.hour>=12 and date.hour<=20 and date.minute%20==0 and strike!=30 and date.second>=0 and date.second<10) and cantrade :
+    #오전 10시~오후 10시 59분 인지 체크
+    if date.hour>=10 and date.hour<=22:
         if (date.hour==20 and date.minute!=0) :
             return
-
-        udnum=37
-        udchan=1.8
-
-        up=udnum-strike*udchan
-        down=udnum+strike*udchan
-        destroy=abs(strike)*1.03+0.8
-        notchange=100-up-down-destroy
-
-        result=None
-
-        amount=0
-        cut=0
-
-        
-        for i in range(10):
-            result=random.random()*100
-            cut+=19-i*2
-
-            if result<cut:
-                jump=random.random()*4.9+0.1
-                amount=math.floor((i+1)*100*jump)
-                print(amount)
-                break
+    
 
 
-        result=random.random()*100
-        print(result)
+        coin_ref=db.collection(u'coins').document(f'moacoin')
 
-        if result<up:
-            print(f"{amount}모아 상승 현재 가격 : {price+amount}")
-            if strike<=0:
-                strike=1
-            else:
-                strike+=1
-            price+=amount
-        elif result<up+notchange:
-            print(f"변화 없음")
-            amount=0
-            strike=0
-        elif result<up+notchange+down:
-            print(f"{amount}모아 하락 현재 가격 : {price-amount}")
-            price-=amount
-            amount=-amount
-            if strike>=0:
-                strike=-1
-            else:
-                strike-=1
+        coin_info=coin_ref.get().to_dict()
+
+        price=0
+        turn=0
+
+        if not coin_info==None: 
+            cantrade=coin_info['cantrade']
+            price=coin_info['price']
+            strike=coin_info['strike']
+            maxprice=coin_info['maxprice']
+            minprice=coin_info['minprice']
+            turn=coin_info['turn']
         else:
-            price=-50000
-
-        if price<=0 :
-            strike=-30
-            cantrade=False
-            print(f"상장 폐지")
-
-        if price>maxprice:
-            maxprice=price
+            turn=0
         
-        if price<minprice:
-            minprice=price
+
+        
+        if date.hour==10 and date.minute==0 and date.second>=0 and date.second<10:
+            if coin_info == None or price<=0:
+                coin_ref.set({
+                    "price":20000,
+                    "minprice":20000,
+                    "maxprice":20000,
+                    "strike":0,
+                    "last":0,
+                    "cantrade":True,
+                    "turn":turn+1
+                    
+                },merge=True)
+            else:
+                coin_ref.set({
+                    "cantrade":True
+                },merge=True)
+            return
+        elif coin_ref.get().to_dict()==None:
+            return
+        
+
+        if date.hour==22 and date.minute==0 and date.second>=0 and date.second<10:
+            coin_ref.set({
+                "cantrade":False
+            },merge=True)
+            return
 
 
 
-        coin_ref.set({
-            "strike":strike,
-            "price":price,
-            "last":amount,
-            "minprice":minprice,
-            "maxprice":maxprice,
-            "cantrade":cantrade
-        })
+        if (date.hour>=12 and date.hour<=20 and date.minute%20==0 and strike!=30 and date.second>=0 and date.second<10) and cantrade :
+            
+
+            udnum=37
+            udchan=1.8
+
+            up=udnum-strike*udchan
+            down=udnum+strike*udchan
+            destroy=abs(strike)*1.03+0.8
+            notchange=100-up-down-destroy
+
+            result=None
+
+            amount=0
+            cut=0
+
+            
+            for i in range(10):
+                result=random.random()*100
+                cut+=19-i*2
+
+                if result<cut:
+                    jump=random.random()*4.9+0.1
+                    amount=math.floor((i+1)*100*jump)
+                    print(amount)
+                    break
+
+
+            result=random.random()*100
+            print(result)
+
+            if result<up:
+                print(f"{amount}모아 상승 현재 가격 : {price+amount}")
+                if strike<=0:
+                    strike=1
+                else:
+                    strike+=1
+                price+=amount
+            elif result<up+notchange:
+                print(f"변화 없음")
+                amount=0
+                strike=0
+            elif result<up+notchange+down:
+                print(f"{amount}모아 하락 현재 가격 : {price-amount}")
+                price-=amount
+                amount=-amount
+                if strike>=0:
+                    strike=-1
+                else:
+                    strike-=1
+            else:
+                price=-50000
+
+            if price<=0 :
+                strike=-30
+                cantrade=False
+                print(f"상장 폐지")
+
+            if price>maxprice:
+                maxprice=price
+            
+            if price<minprice:
+                minprice=price
+
+
+
+            coin_ref.set({
+                "strike":strike,
+                "price":price,
+                "last":amount,
+                "minprice":minprice,
+                "maxprice":maxprice,
+                "cantrade":cantrade
+            })
     
 def ReturnInfo(ctx):
     user_ref= db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
@@ -731,6 +785,16 @@ def ChangeMoney(ctx,money,change):
 
 @bot.command()
 async def 상점(ctx):
+    print(123)
     store_ref= db.collection(u'servers').document(f'{ctx.guild.id}').collection('store')
+
+    store_info=store_ref.stream()
+
+
+    for doc in store_info:
+        print(f'{doc.id} => {doc.to_dict()}')
+
+
+
 
 bot.run(token)
