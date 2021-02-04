@@ -600,7 +600,7 @@ async def test():
     
 
     
-    if date.hour==10 and date.minute==0 and date.second>=0 and date.second<10: :
+    if date.hour==10 and date.minute==0 and date.second>=0 and date.second<10:
         if coin_info == None or price<=0:
             coin_ref.set({
                 "price":20000,
