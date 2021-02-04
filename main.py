@@ -13,7 +13,7 @@ import traceback
 from discord.ext import tasks
 
 
-version="V2.21.02.03"
+version="V2.21.02.04"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -56,7 +56,7 @@ async def on_ready():
     if testint==1:
         channel=bot.get_channel(709647685417697372)
         await channel.send("moa2bot test")
-        test.start()
+    test.start()
     await bot.change_presence(status=discord.Status.online,activity=discord.Game(version))
 
 @bot.command()
@@ -584,11 +584,12 @@ async def 코인(ctx,mode=None,amount=None):
 
 @tasks.loop(seconds=10)
 async def test():
-    
     date=datetime.datetime.now()
     coin_ref=db.collection(u'coins').document(f'moacoin')
 
     coin_info=coin_ref.get().to_dict()
+
+    price=0
 
     if not coin_info==None: 
         cantrade=coin_info['cantrade']
@@ -599,8 +600,8 @@ async def test():
     
 
     
-    if date.hour==10 and date.minute==0 and date.second>=0 and date.second<10:
-        if coin_ref.get().to_dict() == None or price<=0:
+    if date.hour==10 and date.minute==0 and date.second>=0 and date.second<10: :
+        if coin_info == None or price<=0:
             coin_ref.set({
                 "price":20000,
                 "minprice":20000,
