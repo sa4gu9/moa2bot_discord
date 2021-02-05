@@ -13,7 +13,7 @@ import traceback
 from discord.ext import tasks
 
 
-version="V2.21.02.05"
+version="V2.21.02.06"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -543,7 +543,13 @@ async def 코인(ctx,coinnName=None,mode=None,amount=None):
             have=0
         else:
             have=userDict[f'{coinnName}']
-            user_turn=userDict[f'{coinnName}_turn']
+
+            print(userDict)
+
+            if f'{coinnName}_turn' in userDict.keys():
+                user_turn=userDict[f'{coinnName}_turn']
+            else:
+                user_turn=1
 
         if mode==None:
             strike=coindata['strike']
@@ -785,10 +791,11 @@ def ChangeMoney(ctx,money,change):
 
 @bot.command()
 async def 상점(ctx):
-    print(123)
     store_ref= db.collection(u'servers').document(f'{ctx.guild.id}').collection('store')
 
     store_info=store_ref.stream()
+
+    print(store_info)
 
 
     for doc in store_info:
