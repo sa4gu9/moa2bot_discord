@@ -13,7 +13,7 @@ import traceback
 from discord.ext import tasks
 
 
-version="V2.21.02.06"
+version="V2.21.02.07"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -761,7 +761,7 @@ async def test():
                 "minprice":minprice,
                 "maxprice":maxprice,
                 "cantrade":cantrade
-            })
+            },merge=True)
     
 def ReturnInfo(ctx):
     user_ref= db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
