@@ -199,7 +199,7 @@ def GetBeggingMoa():
 
 @bot.command()
 async def 구걸(ctx) :
-    doc_ref = GetUserInfo()
+    doc_ref = GetUserInfo(ctx)
 
     doc = doc_ref.get()
     if doc.exists:
