@@ -75,7 +75,7 @@ async def 가입(ctx,nickname) :
     for i in random.sample(password_pool,15):
         password+=i
 
-    direct=GetUserInfo(ctx)
+        direct=GetUserInfo(ctx)
 
         firstData={
             'nickname':f"[첫 시작]{nickname}#{code}",
