@@ -202,7 +202,7 @@ async def 구걸(ctx) :
     doc_ref = GetUserInfo(ctx)
 
     doc = doc_ref.get()
-    if doc.exists:
+    if doc != None:
         getmoa=GetBeggingMoa()
         money,nickname=ReturnInfo(ctx)
 
