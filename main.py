@@ -817,11 +817,11 @@ async def 상점(ctx,itemName=None):
         store_ref.child('의문의 물건 상자 B').set({"price":1000000,"amount":500})
         store_ref.child('의문의 물건 상자 A').set({"price":100000000,"amount":250})
 
-        if itemName==None:
-            storeInfo=store_ref.get()
-            for key in storeInfo.keys():
-                await ctx.send(f"{key}:{storeInfo[key]['price']}모아 {storeInfo[key]['amount']}개 남음")
-            return 
+    if itemName==None:
+        storeInfo=store_ref.get()
+        for key in storeInfo.keys():
+            await ctx.send(f"{key}:{storeInfo[key]['price']}모아 {storeInfo[key]['amount']}개 남음")
+        return 
     else:
         if store_ref.child(itemName).get()==None:
             await ctx.send("상점에 없는 아이템입니다.")
