@@ -120,7 +120,7 @@ def get_chance_multiple(mode) :
 @bot.command()
 async def 베팅(ctx,mode=None,moa=10000) :
     bonusback=0
-    refer=GetUserInfo()
+    refer=GetUserInfo(ctx)
 
     if refer.get()==None:
         await ctx.send(f"가입이 필요합니다.")
