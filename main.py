@@ -8,12 +8,13 @@ import string
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
+from firebase_admin import db
 import math
 import traceback
 from discord.ext import tasks
 
 
-version="V2.21.02.07"
+version="V2.21.02.08"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -21,7 +22,7 @@ token=""
 
 testint=0
 cred=None
-db=None
+dbfs=None
 
 print("현재 열고있는 창이 gcp면 gcp를 입력, vscode면 vscode를 입력해주세요.")
 currentOpen=input()
@@ -38,16 +39,18 @@ if testint==0: #정식 모드
     project_id="moabot-475bc"
     cred = credentials.Certificate('./moabot-475bc-firebase-adminsdk-dlp6a-e629cf966b.json')
     print('gcp')
+    firebase_admin.initialize_app(cred,{'databaseURL': 'https://moabot-475bc.firebaseio.com/'})
 if testint==1: #테스트 모드
     token="NzY4MzcyMDU3NDE0NTY1OTA4.X4_gPg.fg2sLq5F1ZJr9EwIgA_hiVHtfjQ"
     project_id="moa2bot-test"
     cred = credentials.Certificate('./moa2bot-test-firebase-adminsdk-mog9b-41fe3e4992.json')
     print('vscode')
+    firebase_admin.initialize_app(cred,{'databaseURL': 'https://moa2bot-test-default-rtdb.firebaseio.com/'})
 
 
 
-firebase_admin.initialize_app(cred)
-db = firestore.client()
+
+dbfs = firestore.client()
 
 
 
@@ -72,26 +75,28 @@ async def 가입(ctx,nickname) :
     for i in random.sample(password_pool,15):
         password+=i
 
-    doc_ref = db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
+    direct=GetUserInfo()
 
-    doc = doc_ref.get()
-    if doc.exists:
-        await ctx.send(f"이미 가입하였습니다.")
-    else:
-        fin_ref=doc_ref.collection(u'자산')
+    if direct.get()==None:
 
-        doc_ref.set({
-            u'nickname':f"[첫 시작]{nickname}#{code}",
-            u'titles': {0},
-            u'password': password,
-        })
+        firstData={
+            'nickname':f"[첫 시작]{nickname}#{code}",
+            'titles': [0],
+            'password': password,
+        }
 
-        fin_ref.document('moa').set({
-            'money':20000
-        })
+
+        direct.set(firstData)
+
+        direct=direct.child('재산')
+        direct.set({'money':20000})
 
         await ctx.send(f"가입 완료 '[첫 시작]{nickname}#{code}'")
         await ctx.author.send(f"가입 완료, 당신의 비밀번호는 {password}입니다.")
+    else:
+        await ctx.send(f"이미 가입하였습니다.")
+        return
+        
 
 
 def get_chance_multiple(mode) :
@@ -115,15 +120,16 @@ def get_chance_multiple(mode) :
 @bot.command()
 async def 베팅(ctx,mode=None,moa=10000) :
     bonusback=0
-    doc_ref = db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
+    refer=GetUserInfo()
 
-    doc = doc_ref.get()
-    if doc.exists:
+    if refer.get()==None:
+        await ctx.send(f"가입이 필요합니다.")
+    else:
         money, nickname=ReturnInfo(ctx)
 
         if money<=0:
             await ctx.send("베팅할 모아가 없습니다.")
-
+            return
         if mode==None:
             await ctx.send("모드를 입력해주세요.")
             return
@@ -162,8 +168,12 @@ async def 베팅(ctx,mode=None,moa=10000) :
                 await ctx.send("건 돈의 30% 지급")
     
         ChangeMoney(ctx,money,profit-lose+bonusback)
-    else:
-        await ctx.send(f"가입이 필요합니다.")
+        
+
+
+    doc_ref = dbfs.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
+
+    doc = doc_ref.get()
 
 
 def GetBeggingMoa():
@@ -189,7 +199,7 @@ def GetBeggingMoa():
 
 @bot.command()
 async def 구걸(ctx) :
-    doc_ref = db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
+    doc_ref = GetUserInfo()
 
     doc = doc_ref.get()
     if doc.exists:
@@ -210,11 +220,12 @@ async def 구걸(ctx) :
 
 @bot.command()
 async def 자산(ctx):
-    doc_ref = db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
+    direct=GetUserInfo(ctx)
 
-    doc = doc_ref.get()
-    if doc.exists:
-        money,nickname=ReturnInfo(ctx)
+    doc = direct.get()
+    if doc!=None:
+        money=doc['재산']['money']
+        nickname=doc['nickname']
 
         await ctx.send(f"{nickname}의 자산은 {money}모아")
     else:
@@ -223,51 +234,81 @@ async def 자산(ctx):
 
 @bot.command()
 async def 비밀번호(ctx) :
-    doc_ref = db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
-    
-    doc = doc_ref.get()
-    if doc.exists:
-        password=doc.to_dict()['password']
+    direct=GetUserInfo(ctx)
 
-        await ctx.auhor.send(f"당신의 비밀번호는 {password}")
+    doc = direct.get()
+    if doc!=None:
+        password=doc['password']
+
+        await ctx.author.send(f"당신의 비밀번호는 {password}")
     else:
         await ctx.send(f"가입이 필요합니다.")
 
 @bot.command()
-async def 상자구매(ctx):
-    doc_ref = db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
+async def 상자열기(ctx,boxName,amount=1):
+    direct=None
+    realLuck=None
+
+    userdir=GetUserInfo(ctx)
+    direct=userdir.child('inventory').get()
+
+    if userdir.get()==None:
+        await ctx.send("가입을 해주세요.")
+        return
+
+    if not boxName in direct.keys():
+        await ctx.send("가지고 있지 않거나 잘못된 이름입니다.")
+        return
+    else:
+        if direct[boxName]-1==0:
+            del direct[boxName]
+            userdir.child('inventory').set(direct)
+        else:
+            userdir.child('inventory').update({boxName:direct[boxName]-1})
+            
 
     money,nickname = ReturnInfo(ctx)
-    percent=[]
 
-    itemgrade=0
-    itemlevel=0
+    if str(boxName).startswith("의문의 물건 상자"):
+        cluck=[46,31,11,7,4,1]
+        bluck=[0,0,55,28,14,3]
+        aluck=[0,0,0,0,85,15]
+        
+        if str(boxName).endswith('A'):
+            realLuck=aluck
+        elif str(boxName).endswith('B'):
+            realLuck=bluck
+        elif str(boxName).endswith('C'):
+            realLuck=cluck
 
-    minlevel=[1,5,10,15,20,25]
-    maxlevel=[5,10,20,30,30,30]  
+        
+        percent=[]
 
-    if money>=20000:
-        ChangeMoney(ctx,money,-20000)
+        itemgrade=0
+        itemlevel=0
 
+        minlevel=[1,5,10,15,20,25]
+        maxlevel=[5,10,20,30,30,30]
+
+        
+
+        
+
+        
         result=random.random()*100
-        if result<51:
-            itemgrade=1
-            percent.append(0.51)
-        elif result<82:
-            itemgrade=2
-            percent.append(0.31)
-        elif result<93:
-            itemgrade=3
-            percent.append(0.11)
-        elif result<97:
-            itemgrade=4
-            percent.append(0.04)
-        elif result<99:
-            itemgrade=5
-            percent.append(0.02)
-        else:
-            itemgrade=6
-            percent.append(0.01)
+
+        cut=0
+        itemgrade=0
+        currentGrade=0
+
+        for currentCut in realLuck:
+            cut+=currentCut
+            itemgrade+=1
+
+            if result<cut:
+                currentGrade=itemgrade
+                percent.append(currentCut/100)
+                break
 
         result=random.random()*100
 
@@ -285,35 +326,27 @@ async def 상자구매(ctx):
             percent.append(0.1)
             percent.append(maxlevel[itemgrade-1]-(minlevel[itemgrade-1]+3)+1)
 
-        unknown_ref=doc_ref.collection(u'의문의 물건')
 
-        unknown_dict=unknown_ref.document(f'등급{itemgrade}').get().to_dict()
-        print(unknown_dict)
+        haveInfo=userdir.child('inventory').child('의문의 물건').child(f'등급{itemgrade}')
+
+
+        if haveInfo.get()==None:
+            haveInfo.update({f'레벨{itemlevel}':1})
+        else:
+            if f'레벨{itemlevel}' in haveInfo.get().keys():
+                haveInfo.update({f'레벨{itemlevel}':haveInfo.get()[f'레벨{itemlevel}']+1})
+            else:
+                haveInfo.update({f'레벨{itemlevel}':1})
+
 
         percentcalc=0
 
         
-
         if len(percent)==2:
             percentcalc=percent[0]*percent[1]*100
         elif len(percent)==3:
             percentcalc=percent[0]*percent[1]/percent[2]*100
 
-
-
-        if unknown_dict == None:
-            unknown_dict={}
-            unknown_dict[str(itemlevel)]=1
-        else:
-            if str(itemlevel) in dict(unknown_dict).keys():
-                unknown_dict[str(itemlevel)]+=1
-            else:
-                unknown_dict[str(itemlevel)]=1
-
-        print(unknown_dict)
-
-        unknown_ref.document(f'등급{itemgrade}').set(unknown_dict,merge=True)
-      
 
         if itemlevel==30 and itemgrade==6 :
             doc_ref.update({u'titles': firestore.ArrayUnion([1])})
@@ -321,14 +354,15 @@ async def 상자구매(ctx):
 
 
         await ctx.send(f"의문의 물건 등급{itemgrade} {itemlevel}강({(format(percentcalc,'''.3f''')).rstrip('0')}%) 획득!")
-    else:
-        await ctx.send(f"상자를 구매할수 없습니다. {20000-money}모아가 부족합니다.")
     
 
 @bot.command()
 async def 강화(ctx,grade=None,level=None):
     try:
-        user_ref= db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
+        await ctx.send("현재 이용할 수 없습니다.")
+        return
+
+        user_ref= dbfs.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
         minlevel=[1,5,10,15,20,25]
         maxlevel=[5,10,20,30,30,30]
 
@@ -479,31 +513,14 @@ async def 강화(ctx,grade=None,level=None):
         traceback.print_exc()
         await ctx.send("의문의 물건 등급 또는 레벨을 숫자로 입력해주세요.")
 
-def check(user_ref,fin_ref):
-
-    user_info=user_ref.get().to_dict()
-
-    if fin_ref.document('moa').get().to_dict()==None or 'money' in user_info.keys():
-        
-        money=user_info['money']
-        del user_info['money']
-
-        print(user_info)
-
-        user_ref.set(user_info)
-
-        fin_ref.document('moa').set({
-            'money':money
-        })
-
-
-        
 
 
 @bot.command()
 async def 코인(ctx,coinnName=None,mode=None,amount=None):
     try:
-        coin_ref=db.collection(u'coins')
+        await ctx.send("현재 이용할 수 없습니다.")
+        return
+        coin_ref=dbfs.collection(u'coins')
         
 
         selectCoin_ref=None
@@ -531,7 +548,7 @@ async def 코인(ctx,coinnName=None,mode=None,amount=None):
 
         price=coindata['price']
 
-        user_ref= db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
+        user_ref= dbfs.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
         fin_ref=user_ref.collection(u'자산')
 
         check(user_ref,fin_ref)
@@ -630,6 +647,10 @@ async def 코인(ctx,coinnName=None,mode=None,amount=None):
 
 @tasks.loop(seconds=10)
 async def test():
+    #realtime db로 바꿀때가지 return
+    return
+
+
     date=datetime.datetime.now()
 
 
@@ -640,7 +661,7 @@ async def test():
     
 
 
-        coin_ref=db.collection(u'coins').document(f'moacoin')
+        coin_ref=dbfs.collection(u'coins').document(f'moacoin')
 
         coin_info=coin_ref.get().to_dict()
 
@@ -764,42 +785,76 @@ async def test():
             },merge=True)
     
 def ReturnInfo(ctx):
-    user_ref= db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
-    fin_ref=user_ref.collection(u'자산')
+    refer=GetUserInfo(ctx)
 
-    check(user_ref,fin_ref)
+    userinfo=refer.get()
 
-    money=fin_ref.document('moa').get().to_dict()['money']
-    nickname=user_ref.get().to_dict()['nickname']
+    money=userinfo['재산']['money']
+    nickname=userinfo['nickname']
 
 
     return money,nickname
 
 def ChangeMoney(ctx,money,change):
-    user_ref= db.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
-    fin_ref=user_ref.collection(u'자산')
-
-    check(user_ref,fin_ref)
+    userinfo=GetUserInfo(ctx).child('재산')
 
     if change<0:
         if abs(change)>money:
             return -1
 
-    fin_ref.document('moa').set({
-        'money':money+change
-    },merge=True)
+    userinfo.update({'money':money+change})
 
 @bot.command()
-async def 상점(ctx):
-    store_ref= db.collection(u'servers').document(f'{ctx.guild.id}').collection('store')
-
-    store_info=store_ref.stream()
-
-    print(store_info)
+async def 상점(ctx,itemName=None):
+    store_ref= db.reference(f'servers/server{ctx.guild.id}/store')
+    
+    storeInfo=store_ref.get()
 
 
-    for doc in store_info:
-        print(f'{doc.id} => {doc.to_dict()}')
+    if storeInfo==None:
+        store_ref.child('의문의 물건 등급업 주문서').set({"price":3000,"amount":300})
+        store_ref.child('의문의 물건 상자 C').set({"price":20000,"amount":1000})
+        store_ref.child('의문의 물건 상자 B').set({"price":1000000,"amount":500})
+        store_ref.child('의문의 물건 상자 A').set({"price":100000000,"amount":250})
+
+        if itemName==None:
+            storeInfo=store_ref.get()
+            for key in storeInfo.keys():
+                await ctx.send(f"{key}:{storeInfo[key]['price']}모아 {storeInfo[key]['amount']}개 남음")
+        
+    else:
+        if store_ref.child(itemName).get()==None:
+            await ctx.send("상점에 없는 아이템입니다.")
+        else:
+            userInfo=GetUserInfo(ctx)
+            money,nickname=ReturnInfo(ctx)
+
+            if money>=storeInfo[itemName]['price']:
+                #아이템 보유 정보
+                userInfo=GetUserInfo(ctx)
+                userInfo.child('재산').update({'money':money-storeInfo[itemName]['price']})
+                inventoryInfo=userInfo.child('inventory').get()
+                store_ref.child(itemName).update({'amount':storeInfo[itemName]['amount']-1})
+                if inventoryInfo==None:
+                    userInfo.child('inventory').update({itemName:1})
+                else:
+                    have=0
+                    if itemName in userInfo.child('inventory').get().keys() :
+                        have=userInfo.child('inventory').get()[itemName]
+                        userInfo.child('inventory').update({itemName:have+1})
+                    else:
+                        have=1
+                        userInfo.child('inventory').update({itemName:1})
+
+                await ctx.send(f"{itemName} 구매 완료, {have+1}개 보유중") 
+            else:
+                await ctx.send(f"{storeInfo[itemName]['price']-money}모아가 부족합니다.")
+                
+
+            
+
+def GetUserInfo(ctx):
+    return db.reference(f'servers/server{ctx.guild.id}/users/user{ctx.author.id}')
 
 
 
