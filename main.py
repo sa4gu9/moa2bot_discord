@@ -75,7 +75,7 @@ async def 가입(ctx,nickname) :
     for i in random.sample(password_pool,15):
         password+=i
 
-    direct=GetUserInfo()
+    direct=GetUserInfo(ctx)
 
     if direct.get()==None:
 
