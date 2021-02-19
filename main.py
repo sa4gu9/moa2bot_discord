@@ -821,7 +821,7 @@ async def 상점(ctx,itemName=None):
             storeInfo=store_ref.get()
             for key in storeInfo.keys():
                 await ctx.send(f"{key}:{storeInfo[key]['price']}모아 {storeInfo[key]['amount']}개 남음")
-        
+       return 
     else:
         if store_ref.child(itemName).get()==None:
             await ctx.send("상점에 없는 아이템입니다.")
