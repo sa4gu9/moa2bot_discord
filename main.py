@@ -14,7 +14,7 @@ import traceback
 from discord.ext import tasks
 
 
-version="V2.21.02.08"
+version="V2.21.02.09"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -359,15 +359,13 @@ async def 상자열기(ctx,boxName,amount=1):
 @bot.command()
 async def 강화(ctx,grade=None,level=None):
     try:
-        await ctx.send("현재 이용할 수 없습니다.")
-        return
 
-        user_ref= dbfs.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
+        user_ref= GetUserInfo(ctx)
         minlevel=[1,5,10,15,20,25]
         maxlevel=[5,10,20,30,30,30]
 
         if grade=="destroy":
-            unknown_have = user_ref.collection(u'의문의 물건').document(f'destroy').get().to_dict()
+            unknown_have = user_ref.child('inventory').child('의문의 물건').child('destroy').get()
 
             if unknown_have==None:
                 await ctx.send("입력한 등급의 의문의 물건을 가지고 있지 않습니다.")
@@ -389,14 +387,10 @@ async def 강화(ctx,grade=None,level=None):
 
         
 
-        unknown_have = user_ref.collection(u'의문의 물건').document(f'등급{grade}').get().to_dict()
-        destroy_have = user_ref.collection(u'의문의 물건').document(u'destroy')
-        des_dict=destroy_have.get().to_dict()
+        unknown_have = user_ref.child('inventory').child('의문의 물건').child(f'등급{grade}').get()
+        destroy_have = user_ref.child('inventory').child(u'의문의 물건').child(u'destroy').get()
 
-        fin_ref=user_ref.collection(u'자산')
-
-        print("check")
-        check(user_ref,fin_ref)
+        fin_ref=user_ref.child(u'재산')
 
         if unknown_have==None:
             await ctx.send("입력한 등급의 의문의 물건을 가지고 있지 않습니다.")
@@ -407,7 +401,7 @@ async def 강화(ctx,grade=None,level=None):
             embed=discord.Embed(title=f"보유중인 의문의 물건 등급{grade}")      
 
             for i in unknown_have.keys():
-                embed.add_field(name=f"+{i}",value=unknown_have[i]) 
+                embed.add_field(name=f"{i}",value=unknown_have[i]) 
             await ctx.send(embed=embed)
 
         else:
@@ -426,7 +420,7 @@ async def 강화(ctx,grade=None,level=None):
                     return
             
 
-            if str(level) in unknown_have.keys():
+            if f"레벨{level}" in unknown_have.keys():
                 money,nickname=ReturnInfo(ctx)
 
                 #강화 비용을 구한다.
@@ -483,16 +477,18 @@ async def 강화(ctx,grade=None,level=None):
                 #change값에 따라 dictionary를 바꾼다. 단, change가 0이면 바꾸지 않는다.
                 print(unknown_have)
 
-                unknown_have[str(level)]-=1
+                unknown_have[f"레벨{level}"]-=1
                 
-                if unknown_have[str(level)]==0:
-                    del unknown_have[str(level)]
+                if unknown_have[f"레벨{level}"]==0:
+                    del unknown_have[f"레벨{level}"]
                 
                 if change!=0 and change!=-10:
-                    if str(level+change) in unknown_have.keys():
-                        unknown_have[str(level+change)]+=1
+                    if f"레벨{level+change}" in unknown_have.keys():
+                        unknown_have[f"레벨{level+change}"]+=1
                     else:
-                        unknown_have[str(level+change)]=1
+                        unknown_have[f"레벨{level+change}"]=1
+                
+                print(unknown_have)
 
 
                 #현재 가지고 있는 돈에서 강화비용을 빼고 firebase에 올린다.
@@ -501,7 +497,7 @@ async def 강화(ctx,grade=None,level=None):
                 
                 #바꾼 dictionary를 firebase에 올린다. 단, change가 0이면 바꾸지 않는다.
                 if change!=0:
-                    user_ref.collection(u'의문의 물건').document(f'등급{grade}').set(unknown_have)
+                    user_ref.child('inventory').child('의문의 물건').child(f'등급{grade}').set(unknown_have)
                 
 
                 await ctx.send(f"change : {change}")
@@ -851,7 +847,21 @@ async def 상점(ctx,itemName=None):
                 await ctx.send(f"{storeInfo[itemName]['price']-money}모아가 부족합니다.")
                 
 
-            
+ 
+@bot.command()
+async def 등급업(ctx,grade=None,level=None):
+    await ctx.send("이용할수 없습니다.")
+    return
+
+    user_ref= GetUserInfo(ctx)
+    minlevel=[1,5,10,15,20,25]
+    maxlevel=[5,10,20,30,30,30]
+
+    unknown_have = user_ref.child('inventory').child('의문의 물건').child(f'등급{grade}').get()
+
+    #레벨의 물건을 가지고 있는지, 그것의 레벨이 다음단계의 최소 단계를 이상인지
+
+
 
 def GetUserInfo(ctx):
     return db.reference(f'servers/server{ctx.guild.id}/users/user{ctx.author.id}')
