@@ -14,7 +14,7 @@ import traceback
 from discord.ext import tasks
 
 
-version="V2.21.02.09"
+version="V2.21.03.01"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -411,16 +411,18 @@ async def 강화(ctx,grade=None,level=None):
                 await ctx.send(f"등급{grade}는 {minlevel[grade-1]}강이상 +{maxlevel[grade-1]}강이하 입니다.")
                 return
 
-            if level==maxlevel[grade-1] :
-                if grade<6:
-                    await ctx.send("현재 레벨은 현재 등급의 최고 레벨입니다. 등급업을 해주세요.")
-                    return
-                elif grade==6 :
-                    await ctx.send("최고 등급의 최고 레벨은 강화를 할 수 없습니다.")
-                    return
+            
             
 
             if f"레벨{level}" in unknown_have.keys():
+                if level==maxlevel[grade-1] :
+                    if grade<6:
+                        await ctx.send("현재 레벨은 현재 등급의 최고 레벨입니다. 등급업을 해주세요.")
+                        return
+                    elif grade==6 :
+                        await ctx.send("최고 등급의 최고 레벨은 강화를 할 수 없습니다.")
+                        return
+
                 money,nickname=ReturnInfo(ctx)
 
                 #강화 비용을 구한다.
@@ -801,23 +803,40 @@ def ChangeMoney(ctx,money,change):
     userinfo.update({'money':money+change})
 
 @bot.command()
-async def 상점(ctx,itemName=None):
+async def 상점(ctx,itemName=None,amount=1):
     store_ref= db.reference(f'servers/server{ctx.guild.id}/store')
     
     storeInfo=store_ref.get()
 
-
     if storeInfo==None:
-        store_ref.child('의문의 물건 등급업 주문서').set({"price":3000,"amount":300})
-        store_ref.child('의문의 물건 상자 C').set({"price":20000,"amount":1000})
-        store_ref.child('의문의 물건 상자 B').set({"price":1000000,"amount":500})
-        store_ref.child('의문의 물건 상자 A').set({"price":100000000,"amount":250})
+        StoreReset(store_ref)
+    
+    curVersion=db.reference('version').get()['store']
+    
+    
+
+    if 'version' in storeInfo.keys():
+        version=storeInfo['version']
+
+        if version<curVersion:
+            StoreReset(store_ref,curVersion)
+            await ctx.send("상점이 갱신되었습니다.")
+            return
+    else:
+        StoreReset(store_ref,curVersion)
+        await ctx.send("상점이 갱신되었습니다.")
+        return
+
+
+        
 
     if itemName==None:
         storeInfo=store_ref.get()
         for key in storeInfo.keys():
+            if key=='version':
+                continue
             await ctx.send(f"{key}:{storeInfo[key]['price']}모아 {storeInfo[key]['amount']}개 남음")
-        return 
+        return
     else:
         if store_ref.child(itemName).get()==None:
             await ctx.send("상점에 없는 아이템입니다.")
@@ -825,41 +844,105 @@ async def 상점(ctx,itemName=None):
             userInfo=GetUserInfo(ctx)
             money,nickname=ReturnInfo(ctx)
 
-            if money>=storeInfo[itemName]['price']:
+            totalPrice=storeInfo[itemName]['price']*amount
+
+            if money>=totalPrice:
                 #아이템 보유 정보
                 userInfo=GetUserInfo(ctx)
-                userInfo.child('재산').update({'money':money-storeInfo[itemName]['price']})
+                userInfo.child('재산').update({'money':money-totalPrice})
                 inventoryInfo=userInfo.child('inventory').get()
-                store_ref.child(itemName).update({'amount':storeInfo[itemName]['amount']-1})
+                store_ref.child(itemName).update({'amount':storeInfo[itemName]['amount']-amount})
                 if inventoryInfo==None:
-                    userInfo.child('inventory').update({itemName:1})
+                    userInfo.child('inventory').update({itemName:amount})
                 else:
                     have=0
                     if itemName in userInfo.child('inventory').get().keys() :
                         have=userInfo.child('inventory').get()[itemName]
-                        userInfo.child('inventory').update({itemName:have+1})
+                        userInfo.child('inventory').update({itemName:have+amount})
                     else:
-                        have=1
-                        userInfo.child('inventory').update({itemName:1})
+                        userInfo.child('inventory').update({itemName:amount})
 
-                await ctx.send(f"{itemName} 구매 완료, {have+1}개 보유중") 
+                await ctx.send(f"{itemName} 구매 완료, {have+amount}개 보유중") 
             else:
-                await ctx.send(f"{storeInfo[itemName]['price']-money}모아가 부족합니다.")
+                await ctx.send(f"{storeInfo[itemName]['price']-totalPrice}모아가 부족합니다.")
                 
 
  
 @bot.command()
 async def 등급업(ctx,grade=None,level=None):
-    await ctx.send("이용할수 없습니다.")
-    return
+
 
     user_ref= GetUserInfo(ctx)
     minlevel=[1,5,10,15,20,25]
     maxlevel=[5,10,20,30,30,30]
 
+    if grade=="6":
+        await ctx.send("최고등급입니다.")
+        return
+
     unknown_have = user_ref.child('inventory').child('의문의 물건').child(f'등급{grade}').get()
 
-    #레벨의 물건을 가지고 있는지, 그것의 레벨이 다음단계의 최소 단계를 이상인지
+    if unknown_have==None:
+        await ctx.send("가지고 있지 않거나 잘못 입력하였습니다.")
+        return
+
+    print(unknown_have)
+    
+    #레벨의 물건을 가지고 있는지, 그것의 레벨이 다음단계의 최소 단계를 이상인지 체크한다
+    if f"레벨{level}" in unknown_have.keys():
+        have=user_ref.child('inventory').get()
+
+        
+
+
+        if int(level)>=minlevel[int(grade)]:
+            if '의문의 물건 등급업 주문서' in have.keys():
+                if have['의문의 물건 등급업 주문서']-1==0:
+                    del have['의문의 물건 등급업 주문서']
+                    user_ref.child('inventory').set(have)
+                else:
+                    user_ref.child('inventory').update({'의문의 물건 등급업 주문서' : have['의문의 물건 등급업 주문서']-1})
+            else:
+                await ctx.send('의문의 물건 등급업 주문서를 가지고 있지 않습니다.')
+                return
+
+
+            up_percent=[8,4,2,1,0.5]
+            dice=random.random()*100
+            if dice<up_percent[int(grade)-1]:
+
+                #의문의 물건 보유 정보 수정
+                unknown_have[f'레벨{level}']-=1
+                if unknown_have[f'레벨{level}']==0:
+                    del unknown_have[f'레벨{level}']
+
+                user_ref.child('inventory').child('의문의 물건').child(f'등급{grade}').set(unknown_have)
+
+                #등급업한 의문의 물건 데이터 반영
+                upgrade_have=user_ref.child('inventory').child('    의문의 물건').child(f'등급{int(grade)+1}').get()
+
+                if upgrade_have==None:
+                    user_ref.child('inventory').child('의문의 물건').child(f'등급{int(grade)+1}').update({f'레벨{level}':1})
+                else:
+                    if f"레벨{level}" in upgrade_have.keys():
+                        user_ref.child('inventory').child('의문의 물건').child(f'등급{int(grade)+1}').update({f'레벨{level}':upgrade_have[f'레벨{level}']+1})
+                    else:
+                        user_ref.child('inventory').child('의문의 물건').child(f'등급{int(grade)+1}').update({f'레벨{level}':1})
+
+
+                await ctx.send("success")
+            else:
+                await ctx.send("fail")
+        else:
+            await ctx.send(f"등급업이 가능한 레벨이 아닙니다. 등급{grade} 레벨{minlevel[int(grade)]}이상 가능")
+            return
+    else:
+        await ctx.send("해당 레벨의 의문의 물건을 가지고 있지 않습니다.")
+        return
+
+            
+
+    
 
 
 
@@ -867,6 +950,26 @@ def GetUserInfo(ctx):
     return db.reference(f'servers/server{ctx.guild.id}/users/user{ctx.author.id}')
 
 
+def StoreReset(ref,curVersion) :
+    ref.child('의문의 물건 등급업 주문서').set({"price":3000,"amount":300})
+    ref.child('의문의 물건 상자 C').set({"price":20000,"amount":1000})
+    ref.child('의문의 물건 상자 B').set({"price":300000,"amount":500})
+    ref.child('의문의 물건 상자 A').set({"price":6000000,"amount":250})
+    ref.update({"version":curVersion})
+
+
+
+
+
+@bot.command()
+async def 건의(ctx):
+    channel=bot.get_channel(809830797082624020)
+    feedback=str(ctx.message.content).replace("$건의","")
+
+    if len(feedback)>40:
+        await ctx.send("40글자 미만으로 보내주세요.")
+        return
+    await channel.send(f"```{feedback}\nserver : {ctx.guild.id}\nuser : {ctx.author.id}```")
 
 
 bot.run(token)
