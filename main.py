@@ -1109,7 +1109,7 @@ async def 보유현황(ctx):
 
     
 
-    print(inventory.keys())
+    await ctx.send(inventory)
 
 
 @bot.command()
