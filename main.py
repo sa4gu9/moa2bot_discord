@@ -12,9 +12,10 @@ from firebase_admin import db
 import math
 import traceback
 from discord.ext import tasks
+import re
 
 
-version="V2.21.03.01"
+version="V2.21.03.02"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -60,7 +61,7 @@ async def on_ready():
         channel=bot.get_channel(805826344842952775)
         await channel.send("moa2bot test")
     test.start()
-    await bot.change_presence(status=discord.Status.online,activity=discord.Game(version))
+    await bot.change_presence(status=discord.Status.online,activity=discord.Game(f"{version} $도움말"))
 
 @bot.command()
 async def 가입(ctx,nickname) :
@@ -89,7 +90,7 @@ async def 가입(ctx,nickname) :
         direct.set(firstData)
 
         direct=direct.child('재산')
-        direct.set({'money':20000})
+        direct.set({'money':200000})
 
         await ctx.send(f"가입 완료 '[첫 시작]{nickname}#{code}'")
         await ctx.author.send(f"가입 완료, 당신의 비밀번호는 {password}입니다.")
@@ -166,6 +167,34 @@ async def 베팅(ctx,mode=None,moa=10000) :
             if save2<10 :
                 bonusback=math.floor(lose*0.3)
                 await ctx.send("건 돈의 30% 지급")
+
+        betinfo=refer.child('stats').child('betting').child(f'mode{mode}')
+        betdict=betinfo.get()
+
+        if betdict==None:
+            if success:
+                betinfo.set({"try":1,"total":int(moa),"success":1,"fail":0,"win":int(moa),"lose":0})
+            else:
+                betinfo.set({"try":1,"total":int(moa),"success":0,"fail":1,"win":0,"lose":int(moa)})
+
+            if int(moa)>=1000000:
+                refer.child('titles').update({str(len(refer.child('titles').get())):2+int(mode)})
+                await ctx.send(f"{nickname} [누적 100만 베팅 - 모드{mode}] 칭호 획득!")
+
+        else:
+            if success:
+                betinfo.update({"try":betdict['try']+1,"total":betdict["total"]+int(moa),"success":betdict["success"]+1,"win":betdict["win"]+int(moa)})
+            else:
+                betinfo.update({"try":betdict['try']+1,"total":betdict["total"]+int(moa),"fail":betdict["fail"]+1,"lose":betdict["lose"]+int(moa)})
+
+            if betdict["total"]+int(moa)>=1000000:
+                refer.child('titles').update({str(len(refer.child('titles').get())):2+int(mode)})
+                await ctx.send(f"{nickname} [누적 100만 베팅 - 모드{mode}] 칭호 획득!")
+
+
+            
+
+            
     
         ChangeMoney(ctx,money,profit-lose+bonusback)
         
@@ -349,8 +378,9 @@ async def 상자열기(ctx,boxName,amount=1):
 
 
         if itemlevel==30 and itemgrade==6 :
+            userdir.child('titles').update({str(len(userdir.child('titles').get())):1})
             doc_ref.update({u'titles': firestore.ArrayUnion([1])})
-            await ctx.send(f"{nickname} 칭호 [완벽을 뽑은 자] 획득")
+            await ctx.send(f"{nickname} [완벽을 뽑은 자] 칭호 획득!")
 
 
         await ctx.send(f"의문의 물건 등급{itemgrade} {itemlevel}강({(format(percentcalc,'''.3f''')).rstrip('0')}%) 획득!")
@@ -844,6 +874,10 @@ async def 상점(ctx,itemName=None,amount=1):
             userInfo=GetUserInfo(ctx)
             money,nickname=ReturnInfo(ctx)
 
+            if int(amount)>storeInfo[itemName]['amount']:
+                await ctx.send("매진이거나 남은수량보다 많이 살 수 없습니다.")
+                return
+
             totalPrice=storeInfo[itemName]['price']*amount
 
             if money>=totalPrice:
@@ -919,7 +953,7 @@ async def 등급업(ctx,grade=None,level=None):
                 user_ref.child('inventory').child('의문의 물건').child(f'등급{grade}').set(unknown_have)
 
                 #등급업한 의문의 물건 데이터 반영
-                upgrade_have=user_ref.child('inventory').child('    의문의 물건').child(f'등급{int(grade)+1}').get()
+                upgrade_have=user_ref.child('inventory').child('의문의 물건').child(f'등급{int(grade)+1}').get()
 
                 if upgrade_have==None:
                     user_ref.child('inventory').child('의문의 물건').child(f'등급{int(grade)+1}').update({f'레벨{level}':1})
@@ -963,6 +997,12 @@ def StoreReset(ref,curVersion) :
 
 @bot.command()
 async def 건의(ctx):
+    user=GetUserInfo(ctx)
+
+    if user.get()==None:
+        await ctx.send("가입을 해야 건의를 할 수 있습니다.")
+        return
+    
     channel=bot.get_channel(809830797082624020)
     feedback=str(ctx.message.content).replace("$건의","")
 
@@ -970,6 +1010,117 @@ async def 건의(ctx):
         await ctx.send("40글자 미만으로 보내주세요.")
         return
     await channel.send(f"```{feedback}\nserver : {ctx.guild.id}\nuser : {ctx.author.id}```")
+
+@bot.command()
+async def 기부(ctx,userid=None,moa=None):
+    if userid==None:
+        await ctx.send("기부할 유저의 id")
+        return
+
+    
+    if moa==None:
+        await ctx.send("기부할 모아")
+        return
+
+    server=db.reference(f'servers/server{ctx.guild.id}')
+
+    givedir=server.child(f'users/user{ctx.author.id}')
+
+    giveuser=givedir.get()
+
+    receivedir=server.child(f'users/user{userid}')
+
+    receiveUser=receivedir.get()
+
+    if receiveUser==None:
+        await ctx.send("가입을 하지 않은 유저의 id입니다.")
+        return
+
+    if ctx.author.id==int(userid):
+        await ctx.send("자기 자신한테 기부 할 수 없습니다.")
+        return
+
+    if int(moa)>giveuser['재산']['money']:
+        await ctx.send("모아가 부족합니다.")
+        return
+
+
+    #기부 통계 작성 코드
+    receiveData=receivedir.child('stats/donation').get()
+    giveData=givedir.child('stats/donation').get()
+
+    if receiveData==None:
+        receivedir.child('stats/donation').set({"receive":1,"totalreceive":int(moa)})
+    else:
+        receivedir.child('stats/donation').update({"receive":receiveData["receive"]+1,"totalreceive":receiveData["totalreceive"]+int(moa)})
+
+    if giveData==None:
+        givedir.child('stats/donation').set({"give":1,"totalgive":int(moa)})
+    else:
+        givedir.child('stats/donation').update({"give":giveData["give"]+1,"totalgive":giveData["totalgive"]+int(moa)})
+
+    
+
+
+    
+
+
+    server.child(f'users/user{ctx.author.id}/재산').update({'money':giveuser['재산']['money']-int(moa)})
+    server.child(f'users/user{userid}/재산').update({'money':receiveUser['재산']['money']+int(moa)})
+
+    giveinfo=f"{giveuser['nickname']}, {receiveUser['nickname']}에게 {moa}모아 기부완료"
+
+    await ctx.send(giveinfo)
+
+@bot.command()
+async def 칭호(ctx,setn=None):
+    allTitles=db.reference('titles').get()
+    user=GetUserInfo(ctx)
+    userTitles=user.child('titles').get()
+
+    print(allTitles)
+    print(userTitles)
+
+    if setn==None:
+        for title in userTitles:
+            await ctx.send(allTitles[title])
+    else:
+        change=re.sub("\[.+\]",f"[{allTitles[userTitles[int(setn)]]}]",user.get()['nickname'])
+        db.reference(f'servers/server{ctx.guild.id}/users/user{ctx.author.id}').update({'nickname':change})
+
+        await ctx.send(f"{change}로 변경 완료")
+
+@bot.command()
+async def 구매(ctx,itemNo=None):
+    await ctx.send("현재 이용할 수 없습니다.")
+    return
+
+@bot.command()
+async def 판매(ctx,itemName=None,price=None):
+    await ctx.send("현재 이용할 수 없습니다.")
+    return
+
+
+@bot.command()
+async def 보유현황(ctx):
+    user=GetUserInfo(ctx)
+
+    inventory=user.child('inventory').get()
+
+    
+
+    print(inventory.keys())
+
+
+@bot.command()
+async def 도움말(ctx):
+    helptext = "```"
+    for command in bot.commands:
+        helptext+=f"${command}\n"
+    helptext+="```"
+    await ctx.send(helptext)
+
+
 
 
 bot.run(token)
