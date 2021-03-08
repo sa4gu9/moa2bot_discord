@@ -15,7 +15,7 @@ from discord.ext import tasks
 import re
 
 
-version="V2.21.03.03"
+version="V2.21.03.04"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -223,6 +223,7 @@ def GetBeggingMoa():
 
     return getmoa
 
+@commands.cooldown(1, 30, commands.BucketType.user)
 @bot.command()
 async def 구걸(ctx) :
     doc_ref = GetUserInfo(ctx)
@@ -243,6 +244,14 @@ async def 구걸(ctx) :
 
     else:
         await ctx.send(f"가입이 필요합니다.")
+
+@구걸.error
+async def mine_error(ctx, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        msg = 'This command is ratelimited, please try again in {:.2f}s'.format(error.retry_after)
+        await ctx.send(msg)
+    else:
+        raise error
 
 @bot.command()
 async def 자산(ctx):
@@ -670,7 +679,7 @@ async def 코인(ctx,coinnName=None,mode=None,amount=None):
         await ctx.send("수량을 숫자로 입력해주세요.")
         traceback.print_exception()
 
-@bot.command()
+
 async def GetTitle(refer,num):
     refer.update({str(len(usertitle)):num})
     await ctx.send(f"{nickname}  {db.reference('titles').get()[num]} 칭호 획득!")
@@ -897,12 +906,16 @@ async def 상점(ctx,itemName=None,amount=1):
                     else:
                         userInfo.child('inventory').update({itemName:amount})
 
-                await ctx.send(f"{itemName} 구매 완료, {have+amount}개 보유중") 
+                await ctx.send(f"{itemName} 구매 완료, {have+amount}개 보유중")
             else:
                 await ctx.send(f"{storeInfo[itemName]['price']-totalPrice}모아가 부족합니다.")
                 
 
- 
+
+def Additem(itemName):
+    return
+
+
 @bot.command()
 async def 등급업(ctx,grade=None,level=None):
 
@@ -1064,11 +1077,7 @@ async def 기부(ctx,userid=None,moa=None):
     if giveData==None:
         givedir.child('stats/donation').set({"give":1,"totalgive":int(moa)})
     else:
-        givedir.child('stats/donation').update({"give":giveData["give"]+1,"totalgive":giveData["totalgive"]+int(moa)})
-
-    
-
-
+        givedir.child('stats/donation').update({"give":giveData["give"]+1,"totalgive":giveData["totalgive"]+int(moa)})  
     
 
 
@@ -1103,7 +1112,7 @@ async def 구매(ctx,itemNo=None):
     return
 
 @bot.command()
-async def 판매(ctx,itemName=None,price=None):
+async def 의문의물건판매(ctx,grade=None,level=None,plus30=None):
     await ctx.send("현재 이용할 수 없습니다.")
     return
 
@@ -1136,7 +1145,7 @@ async def 모두(ctx):
     userInfo=users.get()
 
     for user in userInfo.keys():
-        sendText+=f"{userInfo[user]['nickname']} : {userInfo[user]['재산']['money']}모아"
+        sendText+=f"{userInfo[user]['nickname']} : {userInfo[user]['재산']['money']}모아\n"
 
     sendText+="```"
 
