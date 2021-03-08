@@ -15,7 +15,7 @@ from discord.ext import tasks
 import re
 
 
-version="V2.21.03.02"
+version="V2.21.03.03"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -171,6 +171,8 @@ async def 베팅(ctx,mode=None,moa=10000) :
         betinfo=refer.child('stats').child('betting').child(f'mode{mode}')
         betdict=betinfo.get()
 
+        usertitle=refer.child('titles').get()
+
         if betdict==None:
             if success:
                 betinfo.set({"try":1,"total":int(moa),"success":1,"fail":0,"win":int(moa),"lose":0})
@@ -187,14 +189,9 @@ async def 베팅(ctx,mode=None,moa=10000) :
             else:
                 betinfo.update({"try":betdict['try']+1,"total":betdict["total"]+int(moa),"fail":betdict["fail"]+1,"lose":betdict["lose"]+int(moa)})
 
-            if betdict["total"]+int(moa)>=1000000:
-                refer.child('titles').update({str(len(refer.child('titles').get())):2+int(mode)})
-                await ctx.send(f"{nickname} [누적 100만 베팅 - 모드{mode}] 칭호 획득!")
+            if betdict["total"]+int(moa)>=1000000 and not str(2+int(mode)) in usertitle:
+                await GetTitle(refer.child('titles'),2+int(mode))
 
-
-            
-
-            
     
         ChangeMoney(ctx,money,profit-lose+bonusback)
         
@@ -546,9 +543,9 @@ async def 강화(ctx,grade=None,level=None):
 @bot.command()
 async def 코인(ctx,coinnName=None,mode=None,amount=None):
     try:
-        await ctx.send("현재 이용할 수 없습니다.")
-        return
-        coin_ref=dbfs.collection(u'coins')
+        # await ctx.send("현재 이용할 수 없습니다.")
+        # return
+        coin_ref=db.reference(u'coins')
         
 
         selectCoin_ref=None
@@ -561,14 +558,14 @@ async def 코인(ctx,coinnName=None,mode=None,amount=None):
         coindata=None
 
         if coinnName!=None:
-            selectCoin_ref=coin_ref.document(coinnName)
-            coindata=selectCoin_ref.get().to_dict()
+            selectCoin_ref=coin_ref.child(coinnName)
+            coindata=selectCoin_ref.get()
         else:
-            docs=coin_ref.stream()
+            docs=coin_ref.get()
             embed=discord.Embed(title=f"코인 현황")
-            for doc in docs:
-                data=doc.to_dict()
-                embed.add_field(name=doc.id,value=f"{data['price']}\n{data['last']}")
+            
+            for doc in docs.keys():
+                embed.add_field(name=doc,value=f"{docs[doc]['price']}\n{docs[doc]['last']}")
             await ctx.send(embed=embed)
             return
 
@@ -576,13 +573,13 @@ async def 코인(ctx,coinnName=None,mode=None,amount=None):
 
         price=coindata['price']
 
-        user_ref= dbfs.collection(u'servers').document(f'{ctx.guild.id}').collection('users').document(f'{ctx.author.id}')
-        fin_ref=user_ref.collection(u'자산')
+        user_ref= db.reference(f'servers/server{ctx.guild.id}/users/user{ctx.author.id}')
+        fin_ref=user_ref.child(u'재산')
 
-        check(user_ref,fin_ref)
+
 
         money,nickname=ReturnInfo(ctx)
-        userDict=fin_ref.document('coins').get().to_dict()
+        userDict=fin_ref.child('coins').get()
 
         if userDict == None:
             have=0
@@ -615,7 +612,7 @@ async def 코인(ctx,coinnName=None,mode=None,amount=None):
 
         if turn>user_turn and have>0:
             await ctx.send(f"가지고 있던 {turn}번째 {coinnName}이 상장폐지가 되었습니다.")
-            fin_ref.document('coins').set({
+            fin_ref.child('coins').set({
                 f'{coinnName}':0,
                 f'{coinnName}_turn':turn,
             },merge=True)
@@ -628,14 +625,16 @@ async def 코인(ctx,coinnName=None,mode=None,amount=None):
                 return
             if money>=amount*price:
                 #구매한다
-                fin_ref.document('coins').set({
+                fin_ref.child('coins').update({
                     f'{coinnName}':have+amount,
                     f'{coinnName}_turn':turn,
-                },merge=True)
+                })
 
-                fin_ref.document('moa').set({
+
+                #모아를 깎게 바꿔야함(아직 안바꿈)
+                fin_ref.update({
                     'money':money-price*amount
-                },merge=True)
+                })
 
                 await ctx.send(f"moacoin {amount}개 구입 완료 {have+amount}개 보유중")
             else:
@@ -652,14 +651,14 @@ async def 코인(ctx,coinnName=None,mode=None,amount=None):
                 await ctx.send(f"코인이 {amount-have}개 부족합니다. {have}개 보유중")
                 return
 
-            fin_ref.document('coins').set({
+            fin_ref.document('coins').update({
                 f'{coinnName}':have-amount,
                 f'{coinnName}_turn':turn,
             },merge=True)
 
-            fin_ref.document('moa').set({
+            fin_ref.update({
                 'money':money+price*amount
-            },merge=True)
+            })
             
 
             await ctx.send(f"moacoin {amount}개 판매 완료 {have-amount}개 보유중")
@@ -671,7 +670,10 @@ async def 코인(ctx,coinnName=None,mode=None,amount=None):
         await ctx.send("수량을 숫자로 입력해주세요.")
         traceback.print_exception()
 
-
+@bot.command()
+async def GetTitle(refer,num):
+    refer.update({str(len(usertitle)):num})
+    await ctx.send(f"{nickname}  {db.reference('titles').get()[num]} 칭호 획득!")
 
 @tasks.loop(seconds=10)
 async def test():
@@ -689,9 +691,9 @@ async def test():
     
 
 
-        coin_ref=dbfs.collection(u'coins').document(f'moacoin')
+        coin_ref=db.reference(u'coins/moacoin')
 
-        coin_info=coin_ref.get().to_dict()
+        coin_info=coin_ref.get()
 
         price=0
         turn=0
@@ -710,7 +712,7 @@ async def test():
         
         if date.hour==10 and date.minute==0 and date.second>=0 and date.second<10:
             if coin_info == None or price<=0:
-                coin_ref.set({
+                coin_ref.update({
                     "price":20000,
                     "minprice":20000,
                     "maxprice":20000,
@@ -719,25 +721,24 @@ async def test():
                     "cantrade":True,
                     "turn":turn+1
                     
-                },merge=True)
+                })
             else:
-                coin_ref.set({
+                coin_ref.update({
                     "cantrade":True
-                },merge=True)
+                })
             return
-        elif coin_ref.get().to_dict()==None:
+        elif coin_ref.get()==None:
             return
         
 
         if date.hour==22 and date.minute==0 and date.second>=0 and date.second<10:
-            coin_ref.set({
+            coin_ref.update({
                 "cantrade":False
-            },merge=True)
+            })
             return
 
 
-
-        if (date.hour>=12 and date.hour<=20 and date.minute%20==0 and strike!=30 and date.second>=0 and date.second<10) and cantrade :
+        if ((date.hour>=12 and date.hour<=20 and date.minute%20==0 and strike!=30 and date.second>=0 and date.second<10) and cantrade) :
             
 
             udnum=37
@@ -803,14 +804,14 @@ async def test():
 
 
 
-            coin_ref.set({
+            coin_ref.update({
                 "strike":strike,
                 "price":price,
                 "last":amount,
                 "minprice":minprice,
                 "maxprice":maxprice,
                 "cantrade":cantrade
-            },merge=True)
+            })
     
 def ReturnInfo(ctx):
     refer=GetUserInfo(ctx)
@@ -963,8 +964,14 @@ async def 등급업(ctx,grade=None,level=None):
                     else:
                         user_ref.child('inventory').child('의문의 물건').child(f'등급{int(grade)+1}').update({f'레벨{level}':1})
 
-
                 await ctx.send("success")
+
+                giveMoney=user_ref.parent.parent.child('store/의문의 물건 등급업 주문서').get()['price']*(130//up_percent[int(grade)-1])
+                
+                user_ref.child('재산').update({'money':user_ref.child('재산').get()['money']+giveMoney})
+
+                await ctx.send(f"등급업 성공 보상으로 {giveMoney}모아 지급")
+
             else:
                 await ctx.send("fail")
         else:
@@ -1120,7 +1127,19 @@ async def 도움말(ctx):
     helptext+="```"
     await ctx.send(helptext)
 
+@bot.command()
+async def 모두(ctx):
+    users=db.reference(f'servers/server{ctx.guild.id}/users')
 
+    sendText="```"
 
+    userInfo=users.get()
+
+    for user in userInfo.keys():
+        sendText+=f"{userInfo[user]['nickname']} : {userInfo[user]['재산']['money']}모아"
+
+    sendText+="```"
+
+    await ctx.send(sendText)
 
 bot.run(token)
