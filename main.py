@@ -20,7 +20,7 @@ import json
 
 
 
-version="V2.21.03.04"
+version="V2.21.03.05"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
