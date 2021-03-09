@@ -13,6 +13,11 @@ import math
 import traceback
 from discord.ext import tasks
 import re
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+import reinforce
+import json
+
 
 
 version="V2.21.03.04"
@@ -53,6 +58,15 @@ if testint==1: #테스트 모드
 
 dbfs = firestore.client()
 
+
+scope = [
+'https://spreadsheets.google.com/feeds',
+'https://www.googleapis.com/auth/drive',
+]
+json_file_name = 'studious-loader-270209-3df64a0c2e46.json'
+credentials = ServiceAccountCredentials.from_json_keyfile_name(json_file_name, scope)
+gc = gspread.authorize(credentials)
+spreadsheet_url = 'https://docs.google.com/spreadsheets/d/19iLk22PYIOFPYGvheWymXn-y76NetlAlcGxKthOfewk/edit#gid=178327547'
 
 
 @bot.event
@@ -361,17 +375,7 @@ async def 상자열기(ctx,boxName,amount=1):
             percent.append(0.1)
             percent.append(maxlevel[itemgrade-1]-(minlevel[itemgrade-1]+3)+1)
 
-
-        haveInfo=userdir.child('inventory').child('의문의 물건').child(f'등급{itemgrade}')
-
-
-        if haveInfo.get()==None:
-            haveInfo.update({f'레벨{itemlevel}':1})
-        else:
-            if f'레벨{itemlevel}' in haveInfo.get().keys():
-                haveInfo.update({f'레벨{itemlevel}':haveInfo.get()[f'레벨{itemlevel}']+1})
-            else:
-                haveInfo.update({f'레벨{itemlevel}':1})
+        GetUnknown(userdir,itemgrade,itemlevel)
 
 
         percentcalc=0
@@ -401,10 +405,9 @@ async def 강화(ctx,grade=None,level=None):
         maxlevel=[5,10,20,30,30,30]
 
         if grade=="destroy":
-            unknown_have = user_ref.child('inventory').child('의문의 물건').child('destroy').get()
+            unknown_have = reinforce.GetUnknown(user_ref,"/destroy")
 
-            if unknown_have==None:
-                await ctx.send("입력한 등급의 의문의 물건을 가지고 있지 않습니다.")
+            if await checkunknown(unknown_have,ctx)==-1:
                 return
 
             embed=discord.Embed(title=f"보유중인 파괴 된 의문의 물건")      
@@ -421,15 +424,12 @@ async def 강화(ctx,grade=None,level=None):
         if grade<1 or grade>6:
             await ctx.send("의문의 물건은 1~6등급입니다.")
 
-        
-
-        unknown_have = user_ref.child('inventory').child('의문의 물건').child(f'등급{grade}').get()
-        destroy_have = user_ref.child('inventory').child(u'의문의 물건').child(u'destroy').get()
+        unknown_have = reinforce.GetUnknown(user_ref,f"/등급{grade}")
+        destroy_have = reinforce.GetUnknown(user_ref,"/destroy")
 
         fin_ref=user_ref.child(u'재산')
 
-        if unknown_have==None:
-            await ctx.send("입력한 등급의 의문의 물건을 가지고 있지 않습니다.")
+        if await checkunknown(unknown_have,ctx)==-1:
             return
 
         if level==None:
@@ -928,20 +928,14 @@ async def 등급업(ctx,grade=None,level=None):
         await ctx.send("최고등급입니다.")
         return
 
-    unknown_have = user_ref.child('inventory').child('의문의 물건').child(f'등급{grade}').get()
+    unknown_have = reinforce.GetUnknown(user_ref,f"/등급{grade}")
 
-    if unknown_have==None:
-        await ctx.send("가지고 있지 않거나 잘못 입력하였습니다.")
+    if await checkunknown(unknown_have,ctx)==-1:
         return
-
-    print(unknown_have)
     
     #레벨의 물건을 가지고 있는지, 그것의 레벨이 다음단계의 최소 단계를 이상인지 체크한다
     if f"레벨{level}" in unknown_have.keys():
         have=user_ref.child('inventory').get()
-
-        
-
 
         if int(level)>=minlevel[int(grade)]:
             if '의문의 물건 등급업 주문서' in have.keys():
@@ -976,8 +970,16 @@ async def 등급업(ctx,grade=None,level=None):
                         user_ref.child('inventory').child('의문의 물건').child(f'등급{int(grade)+1}').update({f'레벨{level}':upgrade_have[f'레벨{level}']+1})
                     else:
                         user_ref.child('inventory').child('의문의 물건').child(f'등급{int(grade)+1}').update({f'레벨{level}':1})
+                
+                giveItemName="의문의 물건 판매가격 30% 증가권"
+                inventory=user_ref.child('inventory').get()
 
-                await ctx.send("success")
+                if giveItemName in inventory.keys():
+                    user_ref.child('inventory').update({giveItemName:inventory[giveItemName]+1})
+                else:
+                    user_ref.child('inventory').update({giveItemName:1})
+
+                await ctx.send(f"success! {giveItemName} 지급!")
 
                 giveMoney=user_ref.parent.parent.child('store/의문의 물건 등급업 주문서').get()['price']*(130//up_percent[int(grade)-1])
                 
@@ -995,10 +997,6 @@ async def 등급업(ctx,grade=None,level=None):
         return
 
             
-
-    
-
-
 
 def GetUserInfo(ctx):
     return db.reference(f'servers/server{ctx.guild.id}/users/user{ctx.author.id}')
@@ -1024,7 +1022,7 @@ async def 건의(ctx):
         return
     
     channel=bot.get_channel(809830797082624020)
-    feedback=str(ctx.message.content).replace("$건의","")
+    feedback=str(ctx.message.content).replace("$건의 ","")
 
     if len(feedback)>40:
         await ctx.send("40글자 미만으로 보내주세요.")
@@ -1094,9 +1092,6 @@ async def 칭호(ctx,setn=None):
     user=GetUserInfo(ctx)
     userTitles=user.child('titles').get()
 
-    print(allTitles)
-    print(userTitles)
-
     if setn==None:
         for title in userTitles:
             await ctx.send(allTitles[title])
@@ -1107,14 +1102,124 @@ async def 칭호(ctx,setn=None):
         await ctx.send(f"{change}로 변경 완료")
 
 @bot.command()
-async def 구매(ctx,itemNo=None):
-    await ctx.send("현재 이용할 수 없습니다.")
-    return
+async def 의문의물건구매(ctx,grade=None,level=None):
+    unknown_trade=db.reference("unknown_trade")
+
+    unknown_trade_dict=unknown_trade.get()
+
+    mainkeyname=f"{grade}_{level}"
+
+    if grade==None:
+        for key in unknown_trade_dict.keys():
+            await ctx.send(f"grade : {key.split('_')[0]} level : {key.split('_')[1]} amount : {unknown_trade_dict[key]}")
+    else:
+        if level==None:
+            for key in unknown_trade_dict.keys():
+                if key[0]==grade:
+                    await ctx.send(f"level : {key.split('_')[1]} amount : {unknown_trade_dict[key]}")
+        else:
+            if f"{grade}_{level}" in unknown_trade_dict.keys():
+                if unknown_trade_dict[mainkeyname]>0:
+                    gc1 = gc.open("모아2봇 확률표").worksheet('의문의 물건 기댓값')
+                    buyPrice=int(gc1.cell(int(level)+1,int(grade)+1).value.replace(",",""))
+
+                    realPrice=math.floor(buyPrice*0.8)
+
+                    user=GetUserInfo(ctx)
+
+                    userfinance=user.child('재산').get()
+
+                    if ChangeMoney(ctx,userfinance['money'],-realPrice)==-1:
+                        await ctx.send("모아가 부족합니다.")
+                    else:
+                        GetUnknown(user,grade,level)
+                        unknown_trade.update({mainkeyname:unknown_trade_dict[mainkeyname]-1})
+                        await ctx.send("구매완료")
+                else:
+                    await ctx.send("재고 없음")
+
+
+async def checkunknown(unknown_have,ctx):
+    if unknown_have==None:
+        await ctx.send("의문의 물건을 가지고 있지 않습니다.")
+        return -1
+
+def GetUnknown(userdir,itemgrade,itemlevel):
+    haveInfo=userdir.child('inventory').child('의문의 물건').child(f'등급{itemgrade}')
+
+
+    if haveInfo.get()==None:
+        haveInfo.update({f'레벨{itemlevel}':1})
+    else:
+        if f'레벨{itemlevel}' in haveInfo.get().keys():
+            haveInfo.update({f'레벨{itemlevel}':haveInfo.get()[f'레벨{itemlevel}']+1})
+        else:
+            haveInfo.update({f'레벨{itemlevel}':1})
+
 
 @bot.command()
 async def 의문의물건판매(ctx,grade=None,level=None,plus30=None):
-    await ctx.send("현재 이용할 수 없습니다.")
-    return
+    if plus30==None:
+        await ctx.send("사용할 의문의 물건 판매가격 30% 증가권의 개수를 입력해주세요.")
+        return
+
+    gc1 = gc.open("모아2봇 확률표").worksheet('의문의 물건 기댓값')
+    sellPrice=int(gc1.cell(int(level)+1,int(grade)+1).value.replace(",",""))
+
+    user_ref=GetUserInfo(ctx)
+
+    unknown_have=reinforce.GetUnknown(user_ref,f"/등급{grade}")
+
+    
+
+    if await checkunknown(unknown_have,ctx)==-1:
+        return
+    else:
+        if int(plus30)>=int(grade) or int(plus30)<0 :
+            await ctx.send(f"등급{grade}은 0~{int(grade)-1}장 이하까지 적용 가능합니다.")
+            return
+        else:
+            inventory=user_ref.child(f'inventory').get()
+            itemname="의문의 물건 판매가격 30% 증가권"
+            if itemname in inventory.keys():
+                if inventory[itemname]-int(plus30)>=0:
+                    user_ref.child(f'inventory').update({itemname:inventory[itemname]-int(plus30)})
+                else:
+                    await ctx.send(f"{itemname}이 부족합니다.")
+                    return
+        if f"레벨{level}" in unknown_have.keys():
+            user_ref.child(f'inventory/의문의 물건/등급{grade}').update({f"레벨{level}":unknown_have[f"레벨{level}"]-1})
+
+            if unknown_have[f"레벨{level}"]-1==0:
+                del unknown_have[f"레벨{level}"]
+                user_ref.child(f'inventory/의문의 물건/등급{grade}').set(unknown_have)
+            else:
+                user_ref.child(f'inventory/의문의 물건/등급{grade}').update({f"레벨{level}":unknown_have[f"레벨{level}"]-1})
+
+            user_ref.child('재산').update({'money':user_ref.child('재산').get()['money']+math.floor(sellPrice*0.6*(1.3**(int(plus30))))})
+
+            unknown_trade=db.reference("unknown_trade")
+
+            unknown_trade_dict=unknown_trade.get()
+
+            if unknown_trade_dict==None:
+                unknown_trade.update({f"{grade}_{level}" : 1})
+            else:
+                if f"{grade}_{level}" in unknown_trade_dict.keys():
+                    unknown_trade.update({f"{grade}_{level}" : unknown_trade_dict[f"{grade}_{level}"]+1})
+                else:
+                    unknown_trade.update({f"{grade}_{level}" : 1})
+
+
+
+            await ctx.send("판매 완료")
+        else:
+            await ctx.send("해당 레벨의 의문의 물건을 가지고 있지 않습니다.")
+            return
+        
+
+
+
 
 
 @bot.command()
