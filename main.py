@@ -20,7 +20,7 @@ import json
 
 
 
-version="V2.21.03.05"
+version="V2.21.03.06"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -686,10 +686,6 @@ async def GetTitle(refer,num):
 
 @tasks.loop(seconds=10)
 async def test():
-    #realtime db로 바꿀때가지 return
-    return
-
-
     date=datetime.datetime.now()
 
 
@@ -908,7 +904,7 @@ async def 상점(ctx,itemName=None,amount=1):
 
                 await ctx.send(f"{itemName} 구매 완료, {have+amount}개 보유중")
             else:
-                await ctx.send(f"{storeInfo[itemName]['price']-totalPrice}모아가 부족합니다.")
+                await ctx.send(f"{totalPrice-money}모아가 부족합니다.")
                 
 
 
@@ -1231,6 +1227,28 @@ async def 보유현황(ctx):
     
 
     await ctx.send(inventory)
+
+@bot.command()
+async def 투표(ctx,subject,*select):
+    if subject==None:
+        message=await ctx.send(ctx.message.content.replace("$투표 ",""))
+    
+    if select==None:
+        await message.add_reaction('👍')
+        await message.add_reaction('👎')
+    else:
+        if len(select)>6:
+            await ctx.send("최대 6개까지 설정가능합니다.")
+            return
+        count=0
+        sendmsg=f"{subject}\n"
+        emojis=['👍','✌️','👩‍👦‍👦','🍀','🖐️','🎲']
+        for sel in select:
+            sendmsg+=f"{emojis[count]} {sel}\n"
+            count+=1
+        message=await ctx.send(sendmsg)
+        for i in range(count):
+            await message.add_reaction(emojis[i])
 
 
 @bot.command()
