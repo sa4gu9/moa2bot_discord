@@ -1038,6 +1038,7 @@ def StoreReset(ref,curVersion,ctx) :
     ref.child('의문의 물건 상자 C').set({"price":35000,"amount":1000})
     ref.child('의문의 물건 상자 B').set({"price":300000,"amount":500})
     ref.child('의문의 물건 상자 A').set({"price":6000000,"amount":250})
+    ref.child('LAByteCoin 1개 교환권(상장가 10만모아)').set({"price":70000,"amount":200})
 
     if ctx.guild.id==702739996947251231:
         ref.child('로스트아크 30골드(수수료 미포함) 교환권').set({"price":1000000000,"amount":10})
