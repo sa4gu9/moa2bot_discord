@@ -21,7 +21,7 @@ import asyncio
 
 
 
-version="V2.21.03.07"
+version="V2.21.03.08"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -330,7 +330,7 @@ async def 상자열기(ctx,boxName,amount=1):
         money,nickname = ReturnInfo(ctx)
 
         if str(boxName).startswith("의문의 물건 상자"):
-            cluck=[46,31,11,7,4,1]
+            cluck=[55,24,11,6,3,1]
             bluck=[0,0,55,28,14,3]
             aluck=[0,0,0,0,85,15]
             
@@ -1036,7 +1036,7 @@ def GetUserInfo(ctx):
 
 def StoreReset(ref,curVersion,ctx) :
     ref.child('의문의 물건 등급업 주문서').set({"price":3000,"amount":300})
-    ref.child('의문의 물건 상자 C').set({"price":20000,"amount":1000})
+    ref.child('의문의 물건 상자 C').set({"price":35000,"amount":1000})
     ref.child('의문의 물건 상자 B').set({"price":300000,"amount":500})
     ref.child('의문의 물건 상자 A').set({"price":6000000,"amount":250})
 
@@ -1182,7 +1182,7 @@ async def checkunknown(unknown_have,ctx):
 def GetUnknown(userdir,itemgrade,itemlevel):
     haveInfo=userdir.child(f'inventory/의문의 물건/등급{itemgrade}')
 
-    if haveInfo==None:
+    if haveInfo.get()==None:
         haveInfo.update({f'레벨{itemlevel}':1})
     else:
         if f'레벨{itemlevel}' in haveInfo.get().keys():
@@ -1268,12 +1268,13 @@ async def 보유현황(ctx):
 
 @bot.command()
 async def 투표(ctx,subject,*select):
+    print(select)
     if subject==None:
         await ctx.send("투표 주제를 입력해주세요.")
         return
         
     
-    if select==None:
+    if len(select)==0:
         message=await ctx.send(ctx.message.content.replace("$투표 ",""))
         await message.add_reaction('👍')
         await message.add_reaction('👎')
