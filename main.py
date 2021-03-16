@@ -31,8 +31,7 @@ testint=0
 cred=None
 dbfs=None
 
-print("현재 열고있는 창이 gcp면 gcp를 입력, vscode면 vscode를 입력해주세요.")
-currentOpen=input()
+currentOpen=input("현재 열고있는 창이 gcp면 gcp를 입력, vscode면 vscode를 입력해주세요.")
 
 if currentOpen=="gcp":
     testint=0
