@@ -17,10 +17,11 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import reinforce
 import json
+import asyncio
 
 
 
-version="V2.21.03.06"
+version="V2.21.03.07"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -295,6 +296,10 @@ async def 비밀번호(ctx) :
 
 @bot.command()
 async def 상자열기(ctx,boxName,amount=1):
+    getDict={}
+    if int(amount)>10:
+        await ctx.send("10개를 넘겨서 열수 없습니다.")
+        return
     direct=None
     realLuck=None
 
@@ -306,94 +311,106 @@ async def 상자열기(ctx,boxName,amount=1):
         return
 
     if not boxName in direct.keys():
-        await ctx.send("가지고 있지 않거나 잘못된 이름입니다.")
-        return
+            await ctx.send("가지고 있지 않거나 잘못된 이름입니다.")
+            return
     else:
-        if direct[boxName]-1==0:
-            del direct[boxName]
-            userdir.child('inventory').set(direct)
+        if direct[boxName]-int(amount)>=0:
+            if direct[boxName]-int(amount)==0:
+                del direct[boxName]
+                userdir.child('inventory').set(direct)
+            else:
+                userdir.child('inventory').update({boxName:direct[boxName]-int(amount)})
         else:
-            userdir.child('inventory').update({boxName:direct[boxName]-1})
+            await ctx.send("부족")
+            return
+
+    for i in range(int(amount)):
+        
+
+        money,nickname = ReturnInfo(ctx)
+
+        if str(boxName).startswith("의문의 물건 상자"):
+            cluck=[46,31,11,7,4,1]
+            bluck=[0,0,55,28,14,3]
+            aluck=[0,0,0,0,85,15]
+            
+            if str(boxName).endswith('A'):
+                realLuck=aluck
+            elif str(boxName).endswith('B'):
+                realLuck=bluck
+            elif str(boxName).endswith('C'):
+                realLuck=cluck
+
+            
+            percent=[]
+
+            itemgrade=0
+            itemlevel=0
+
+            minlevel=[1,5,10,15,20,25]
+            maxlevel=[5,10,20,30,30,30]
+
+            
+            percent.clear()
+            result=random.random()*100
+
+            cut=0
+            itemgrade=0
+            currentGrade=0
+
+            for currentCut in realLuck:
+                cut+=currentCut
+                itemgrade+=1
+
+                if result<cut:
+                    currentGrade=itemgrade
+                    percent.append(currentCut/100)
+                    break
+
+            result=random.random()*100
+
+            if result<40:
+                itemlevel=minlevel[itemgrade-1]
+                percent.append(0.4)
+            elif result<70:
+                itemlevel=minlevel[itemgrade-1]+1
+                percent.append(0.3)
+            elif result<90:
+                itemlevel=minlevel[itemgrade-1]+2
+                percent.append(0.2)
+            else:
+                itemlevel=random.randint(minlevel[itemgrade-1]+3,maxlevel[itemgrade-1])
+                percent.append(0.1)
+                percent.append(maxlevel[itemgrade-1]-(minlevel[itemgrade-1]+3)+1)
+
             
 
-    money,nickname = ReturnInfo(ctx)
 
-    if str(boxName).startswith("의문의 물건 상자"):
-        cluck=[46,31,11,7,4,1]
-        bluck=[0,0,55,28,14,3]
-        aluck=[0,0,0,0,85,15]
-        
-        if str(boxName).endswith('A'):
-            realLuck=aluck
-        elif str(boxName).endswith('B'):
-            realLuck=bluck
-        elif str(boxName).endswith('C'):
-            realLuck=cluck
+            percentcalc=0
 
-        
-        percent=[]
+            
+            if len(percent)==2:
+                percentcalc=percent[0]*percent[1]*100
+            elif len(percent)==3:
+                percentcalc=percent[0]*percent[1]/percent[2]*100
 
-        itemgrade=0
-        itemlevel=0
 
-        minlevel=[1,5,10,15,20,25]
-        maxlevel=[5,10,20,30,30,30]
+            if itemlevel==30 and itemgrade==6 :
+                userdir.child('titles').update({str(len(userdir.child('titles').get())):1})
+                await ctx.send(f"{nickname} [완벽을 뽑은 자] 칭호 획득!")
 
-        
 
-        
+            await ctx.send(f"의문의 물건 등급{itemgrade} {itemlevel}강({(format(percentcalc,'''.3f''')).rstrip('0')}%) 획득!")
+
+    
+
+            GetUnknown(userdir,itemgrade,itemlevel)
+            
+
+            
+
 
         
-        result=random.random()*100
-
-        cut=0
-        itemgrade=0
-        currentGrade=0
-
-        for currentCut in realLuck:
-            cut+=currentCut
-            itemgrade+=1
-
-            if result<cut:
-                currentGrade=itemgrade
-                percent.append(currentCut/100)
-                break
-
-        result=random.random()*100
-
-        if result<40:
-            itemlevel=minlevel[itemgrade-1]
-            percent.append(0.4)
-        elif result<70:
-            itemlevel=minlevel[itemgrade-1]+1
-            percent.append(0.3)
-        elif result<90:
-            itemlevel=minlevel[itemgrade-1]+2
-            percent.append(0.2)
-        else:
-            itemlevel=random.randint(minlevel[itemgrade-1]+3,maxlevel[itemgrade-1])
-            percent.append(0.1)
-            percent.append(maxlevel[itemgrade-1]-(minlevel[itemgrade-1]+3)+1)
-
-        GetUnknown(userdir,itemgrade,itemlevel)
-
-
-        percentcalc=0
-
-        
-        if len(percent)==2:
-            percentcalc=percent[0]*percent[1]*100
-        elif len(percent)==3:
-            percentcalc=percent[0]*percent[1]/percent[2]*100
-
-
-        if itemlevel==30 and itemgrade==6 :
-            userdir.child('titles').update({str(len(userdir.child('titles').get())):1})
-            doc_ref.update({u'titles': firestore.ArrayUnion([1])})
-            await ctx.send(f"{nickname} [완벽을 뽑은 자] 칭호 획득!")
-
-
-        await ctx.send(f"의문의 물건 등급{itemgrade} {itemlevel}강({(format(percentcalc,'''.3f''')).rstrip('0')}%) 획득!")
     
 
 @bot.command()
@@ -492,12 +509,31 @@ async def 강화(ctx,grade=None,level=None):
 
                 if result<success:
                     change=1
+                    await ctx.send(f"성공!")
+                    if level+2<maxlevel[grade-1]:
+                        result=random.random()*100
+
+                        if result<20:
+                            await ctx.send(f"크리티컬 발동!")
+                            result=random.random()*100
+                            await asyncio.sleep(3)
+                            if result<80:
+                                change=2
+                                await ctx.send(f"크리티컬 강화 성공!!")   
+                            else:
+                                change=1
+                                await ctx.send(f"크리티컬 강화 실패")
+                                                            
+
                 elif result<success+notchange:
                     change=0
+                    await ctx.send(f"아무 변화가 없었다...")
                 elif result<success+notchange+fail:
                     change=-1
+                    await ctx.send(f"실패")
                 else:
                     change=-10
+                    await ctx.send(f"파괴...")
                     if des_dict == None:
                         destroy_have.set({
                             f'등급{grade}':1
@@ -536,9 +572,9 @@ async def 강화(ctx,grade=None,level=None):
                 #바꾼 dictionary를 firebase에 올린다. 단, change가 0이면 바꾸지 않는다.
                 if change!=0:
                     user_ref.child('inventory').child('의문의 물건').child(f'등급{grade}').set(unknown_have)
-                
 
-                await ctx.send(f"change : {change}")
+
+                    
 
             else:
                 await ctx.send("입력한 레벨의 의문의 물건을 가지고 있지 않습니다.")
@@ -855,11 +891,11 @@ async def 상점(ctx,itemName=None,amount=1):
         version=storeInfo['version']
 
         if version<curVersion:
-            StoreReset(store_ref,curVersion)
+            StoreReset(store_ref,curVersion,ctx)
             await ctx.send("상점이 갱신되었습니다.")
             return
     else:
-        StoreReset(store_ref,curVersion)
+        StoreReset(store_ref,curVersion,ctx)
         await ctx.send("상점이 갱신되었습니다.")
         return
 
@@ -998,11 +1034,14 @@ def GetUserInfo(ctx):
     return db.reference(f'servers/server{ctx.guild.id}/users/user{ctx.author.id}')
 
 
-def StoreReset(ref,curVersion) :
+def StoreReset(ref,curVersion,ctx) :
     ref.child('의문의 물건 등급업 주문서').set({"price":3000,"amount":300})
     ref.child('의문의 물건 상자 C').set({"price":20000,"amount":1000})
     ref.child('의문의 물건 상자 B').set({"price":300000,"amount":500})
     ref.child('의문의 물건 상자 A').set({"price":6000000,"amount":250})
+
+    if ctx.guild.id==702739996947251231:
+        ref.child('로스트아크 30골드 교환권').set({"price":1000000000,"amount":10})
     ref.update({"version":curVersion})
 
 
@@ -1141,10 +1180,9 @@ async def checkunknown(unknown_have,ctx):
         return -1
 
 def GetUnknown(userdir,itemgrade,itemlevel):
-    haveInfo=userdir.child('inventory').child('의문의 물건').child(f'등급{itemgrade}')
+    haveInfo=userdir.child(f'inventory/의문의 물건/등급{itemgrade}')
 
-
-    if haveInfo.get()==None:
+    if haveInfo==None:
         haveInfo.update({f'레벨{itemlevel}':1})
     else:
         if f'레벨{itemlevel}' in haveInfo.get().keys():
@@ -1231,9 +1269,12 @@ async def 보유현황(ctx):
 @bot.command()
 async def 투표(ctx,subject,*select):
     if subject==None:
-        message=await ctx.send(ctx.message.content.replace("$투표 ",""))
+        await ctx.send("투표 주제를 입력해주세요.")
+        return
+        
     
     if select==None:
+        message=await ctx.send(ctx.message.content.replace("$투표 ",""))
         await message.add_reaction('👍')
         await message.add_reaction('👎')
     else:
@@ -1273,5 +1314,7 @@ async def 모두(ctx):
     sendText+="```"
 
     await ctx.send(sendText)
+
+
 
 bot.run(token)
