@@ -329,7 +329,7 @@ async def 상자열기(ctx,boxName,amount=1):
         money,nickname = ReturnInfo(ctx)
 
         if str(boxName).startswith("의문의 물건 상자"):
-            cluck=[55,24,11,6,3,1]
+            cluck=[55.3,24,11,6,3,0.7]
             bluck=[0,0,55,28,14,3]
             aluck=[0,0,0,0,85,15]
             
@@ -1040,7 +1040,9 @@ def StoreReset(ref,curVersion,ctx) :
     ref.child('의문의 물건 상자 A').set({"price":6000000,"amount":250})
 
     if ctx.guild.id==702739996947251231:
-        ref.child('로스트아크 30골드 교환권').set({"price":1000000000,"amount":10})
+        ref.child('로스트아크 30골드(수수료 미포함) 교환권').set({"price":1000000000,"amount":10})
+        ref.child('건빵 한봉지').set({"price":2000000000,"amount":5})
+        ref.child('베스킨라빈스 파인트 기프티콘').set({"price":10000000000,"amount":1})
     ref.update({"version":curVersion})
 
 
