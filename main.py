@@ -21,7 +21,7 @@ import asyncio
 
 
 
-version="V2.21.03.08"
+version="V2.21.03.09"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -716,7 +716,8 @@ async def 코인(ctx,coinnName=None,mode=None,amount=None):
 
 
 async def GetTitle(refer,num):
-    refer.update({str(len(usertitle)):num})
+    usertitle=len(refer.get())
+    refer.update({str(usertitle):num})
     await ctx.send(f"{nickname}  {db.reference('titles').get()[num]} 칭호 획득!")
 
 @tasks.loop(seconds=10)
@@ -1195,6 +1196,9 @@ def GetUnknown(userdir,itemgrade,itemlevel):
 
 @bot.command()
 async def 의문의물건판매(ctx,grade=None,level=None,plus30=None):
+    if ctx.guild.id==712186772846542889:
+        await ctx.send("여기서 판매 허용하면 경제 망가진다 ㄹㅇ ㅋㅋ")
+        return
     if plus30==None:
         await ctx.send("사용할 의문의 물건 판매가격 30% 증가권의 개수를 입력해주세요.")
         return
@@ -1232,7 +1236,13 @@ async def 의문의물건판매(ctx,grade=None,level=None,plus30=None):
             else:
                 user_ref.child(f'inventory/의문의 물건/등급{grade}').update({f"레벨{level}":unknown_have[f"레벨{level}"]-1})
 
-            user_ref.child('재산').update({'money':user_ref.child('재산').get()['money']+math.floor(sellPrice*0.6*(1.3**(int(plus30))))})
+            givePrice=math.floor(sellPrice*0.6*(1.3**(int(plus30))))
+
+            user_ref.child('재산').update({'money':user_ref.child('재산').get()['money']+givePrice})
+
+            if int(level)==30 and int(grade)==6:
+                await ctx.send(f"더이상 강화 또는 등급업을 할 수 없어 거래시장에 올려지지 않고 모아만 지급됩니다.")
+                return
 
             unknown_trade=db.reference("unknown_trade")
 
