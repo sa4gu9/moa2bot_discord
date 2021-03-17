@@ -21,7 +21,7 @@ import asyncio
 
 
 
-version="V2.21.03.09"
+version="V2.21.03.10"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$',intents=intents)
@@ -204,7 +204,7 @@ async def 베팅(ctx,mode=None,moa=10000) :
                 betinfo.update({"try":betdict['try']+1,"total":betdict["total"]+int(moa),"fail":betdict["fail"]+1,"lose":betdict["lose"]+int(moa)})
 
             if betdict["total"]+int(moa)>=1000000 and not str(2+int(mode)) in usertitle:
-                await GetTitle(refer.child('titles'),2+int(mode))
+                await GetTitle(ctx,refer.child('titles'),2+int(mode))
 
     
         ChangeMoney(ctx,money,profit-lose+bonusback)
@@ -715,7 +715,7 @@ async def 코인(ctx,coinnName=None,mode=None,amount=None):
         traceback.print_exception()
 
 
-async def GetTitle(refer,num):
+async def GetTitle(ctx,refer,num):
     usertitle=len(refer.get())
     refer.update({str(usertitle):num})
     await ctx.send(f"{nickname}  {db.reference('titles').get()[num]} 칭호 획득!")
