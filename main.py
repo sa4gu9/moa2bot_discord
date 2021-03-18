@@ -54,10 +54,11 @@ if testint == 0:  # 정식 모드
         cred, {"databaseURL": "https://moabot-475bc.firebaseio.com/"}
     )
 if testint == 1:  # 테스트 모드
+
     token = "NzY4MzcyMDU3NDE0NTY1OTA4.X4_gPg.fg2sLq5F1ZJr9EwIgA_hiVHtfjQ"
     project_id = "moa2bot-test"
     cred = credentials.Certificate(
-        "modules\moa2bot-test-firebase-adminsdk-mog9b-41fe3e4992.json"
+        "modules/moa2bot-test-firebase-adminsdk-mog9b-41fe3e4992.json"
     )
     print("vscode")
     firebase_admin.initialize_app(
@@ -72,7 +73,7 @@ scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive",
 ]
-json_file_name = "modules\studious-loader-270209-3df64a0c2e46.json"
+json_file_name = "modules/studious-loader-270209-3df64a0c2e46.json"
 credentials = ServiceAccountCredentials.from_json_keyfile_name(json_file_name, scope)
 gc = gspread.authorize(credentials)
 spreadsheet_url = "https://docs.google.com/spreadsheets/d/19iLk22PYIOFPYGvheWymXn-y76NetlAlcGxKthOfewk/edit#gid=178327547"
