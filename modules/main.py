@@ -23,7 +23,7 @@ import betting
 import finance
 
 
-version = "V2.21.03.13"
+version = "V2.21.03.14"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="$", intents=intents)
@@ -977,7 +977,7 @@ async def 등급업(ctx, grade=None, level=None):
 
             if CheckToday() == 3:
                 upgradeCut *= 2
-                price = math.floor(price * 0.8)
+
             if dice < upgradeCut:
 
                 # 의문의 물건 보유 정보 수정
@@ -1449,6 +1449,8 @@ async def 의문의물건(ctx):
     for i in range(6):
         sendtext += f"등급{i+1} : {minlevel[i]}~{maxlevel[i]}"
     sendtext += "```"
+
+    await ctx.send(sendtext)
 
 
 @bot.command()
