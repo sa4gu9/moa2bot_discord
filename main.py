@@ -15,15 +15,16 @@ from discord.ext import tasks
 import re
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import reinforce
+
 import json
 import asyncio
 import datetime
-import finance
-import betting
+from modules import finance
+from modules import betting
+from modules import reinforce
 
 
-version = "V2.21.03.14"
+version = "V2.21.03.15"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="$", intents=intents)
