@@ -24,7 +24,7 @@ from modules import betting
 from modules import reinforce
 
 
-version = "V2.21.03.15"
+version = "V2.21.03.16"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="$", intents=intents)
@@ -146,16 +146,16 @@ async def 베팅(ctx, mode=None, moa=10000):
             await ctx.send("모드를 잘못 입력했습니다.")
             return
 
-        if money < int(moa) or int(moa) < 0:
-            await ctx.send("보유량보다 많거나 0원 이하로 베팅하실 수 없습니다.")
-            return
-
         if int(mode) == 4:
             if moa == 10000:
                 moa = money
             else:
                 await ctx.send("베팅 4는 금액 입력을 할 수 없습니다. 올인만 가능합니다.")
                 return
+
+        if money < int(moa) or int(moa) < 0:
+            await ctx.send("보유량보다 많거나 0원 이하로 베팅하실 수 없습니다.")
+            return
 
         if CheckToday() == 0:
             bonus = 5
@@ -271,6 +271,7 @@ async def 구걸(ctx):
 
         if money > 0:
             await ctx.send("0모아를 가지고 있어야 구걸할수 있습니다.")
+            구걸.reset_cooldown(ctx)
             return
 
         ChangeMoney(ctx, money, getmoa)
@@ -1128,22 +1129,38 @@ async def 기부(ctx, userid=None, moa=None):
     if receiveData == None:
         receivedir.child("stats/donation").set({"receive": 1, "totalreceive": int(moa)})
     else:
-        receivedir.child("stats/donation").update(
-            {
-                "receive": receiveData["receive"] + 1,
-                "totalreceive": receiveData["totalreceive"] + int(moa),
-            }
-        )
+        if "receive" in receiveData.keys():
+            receivedir.child("stats/donation").update(
+                {
+                    "receive": receiveData["receive"] + 1,
+                    "totalreceive": receiveData["totalreceive"] + int(moa),
+                }
+            )
+        else:
+            receivedir.child("stats/donation").update(
+                {
+                    "receive": 1,
+                    "totalreceive": int(moa),
+                }
+            )
 
     if giveData == None:
         givedir.child("stats/donation").set({"give": 1, "totalgive": int(moa)})
     else:
-        givedir.child("stats/donation").update(
-            {
-                "give": giveData["give"] + 1,
-                "totalgive": giveData["totalgive"] + int(moa),
-            }
-        )
+        if "give" in receiveData.keys():
+            givedir.child("stats/donation").update(
+                {
+                    "give": giveData["give"] + 1,
+                    "totalgive": giveData["totalgive"] + int(moa),
+                }
+            )
+        else:
+            receivedir.child("stats/donation").update(
+                {
+                    "give": 1,
+                    "totalgive": int(moa),
+                }
+            )
 
     server.child(f"users/user{ctx.author.id}/재산").update(
         {"money": giveuser["재산"]["money"] - int(moa)}
