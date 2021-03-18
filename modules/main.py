@@ -46,7 +46,7 @@ if testint == 0:  # 정식 모드
     token = "NzY4MjgzMjcyOTQ5Mzk5NjEy.X4-Njg.NfyDMPVlLmgLAf8LkX9p0s04QDY"
     project_id = "moabot-475bc"
     cred = credentials.Certificate(
-        "../moabot-475bc-firebase-adminsdk-dlp6a-e629cf966b.json"
+        "./moabot-475bc-firebase-adminsdk-dlp6a-e629cf966b.json"
     )
     print("gcp")
     firebase_admin.initialize_app(
@@ -56,7 +56,7 @@ if testint == 1:  # 테스트 모드
     token = "NzY4MzcyMDU3NDE0NTY1OTA4.X4_gPg.fg2sLq5F1ZJr9EwIgA_hiVHtfjQ"
     project_id = "moa2bot-test"
     cred = credentials.Certificate(
-        "../moa2bot-test-firebase-adminsdk-mog9b-41fe3e4992.json"
+        "./moa2bot-test-firebase-adminsdk-mog9b-41fe3e4992.json"
     )
     print("vscode")
     firebase_admin.initialize_app(
