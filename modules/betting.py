@@ -1,14 +1,12 @@
 import math
 import random
-import main
 
 
-def DoBet(mode, moa):
+def DoBet(mode, moa, bonus):
 
     chance, multiple = get_chance_multiple(int(mode))
 
-    if main.CheckToday() == 0:
-        chance += 5
+    chance += bonus
 
     result = random.randrange(0, 100)
 

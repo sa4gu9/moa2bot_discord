@@ -19,8 +19,8 @@ import reinforce
 import json
 import asyncio
 import datetime
-import betting
 import finance
+import betting
 
 
 version = "V2.21.03.14"
@@ -46,7 +46,7 @@ if testint == 0:  # 정식 모드
     token = "NzY4MjgzMjcyOTQ5Mzk5NjEy.X4-Njg.NfyDMPVlLmgLAf8LkX9p0s04QDY"
     project_id = "moabot-475bc"
     cred = credentials.Certificate(
-        "./moabot-475bc-firebase-adminsdk-dlp6a-e629cf966b.json"
+        "moabot-475bc-firebase-adminsdk-dlp6a-e629cf966b.json"
     )
     print("gcp")
     firebase_admin.initialize_app(
@@ -56,7 +56,7 @@ if testint == 1:  # 테스트 모드
     token = "NzY4MzcyMDU3NDE0NTY1OTA4.X4_gPg.fg2sLq5F1ZJr9EwIgA_hiVHtfjQ"
     project_id = "moa2bot-test"
     cred = credentials.Certificate(
-        "./moa2bot-test-firebase-adminsdk-mog9b-41fe3e4992.json"
+        "modules\moa2bot-test-firebase-adminsdk-mog9b-41fe3e4992.json"
     )
     print("vscode")
     firebase_admin.initialize_app(
@@ -71,7 +71,7 @@ scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive",
 ]
-json_file_name = "studious-loader-270209-3df64a0c2e46.json"
+json_file_name = "modules\studious-loader-270209-3df64a0c2e46.json"
 credentials = ServiceAccountCredentials.from_json_keyfile_name(json_file_name, scope)
 gc = gspread.authorize(credentials)
 spreadsheet_url = "https://docs.google.com/spreadsheets/d/19iLk22PYIOFPYGvheWymXn-y76NetlAlcGxKthOfewk/edit#gid=178327547"
@@ -155,7 +155,12 @@ async def 베팅(ctx, mode=None, moa=10000):
                 await ctx.send("베팅 4는 금액 입력을 할 수 없습니다. 올인만 가능합니다.")
                 return
 
-        success, change = betting.DoBet(mode, moa)
+        if CheckToday() == 0:
+            bonus = 5
+        else:
+            bonus = 0
+
+        success, change = betting.DoBet(mode, moa, bonus)
 
         resultText = {True: f"{nickname} 베팅 성공!", False: f"{nickname} 베팅 실패!"}
 
@@ -1447,7 +1452,7 @@ async def 의문의물건(ctx):
     sendtext = "```"
 
     for i in range(6):
-        sendtext += f"등급{i+1} : {minlevel[i]}~{maxlevel[i]}"
+        sendtext += f"등급{i+1} : {minlevel[i]}~{maxlevel[i]}\n"
     sendtext += "```"
 
     await ctx.send(sendtext)
