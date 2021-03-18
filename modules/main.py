@@ -1443,18 +1443,18 @@ async def 오늘의모아봇(ctx):
 async def 의문의물건(ctx):
     minlevel = [1, 5, 10, 15, 20, 25]
     maxlevel = [5, 10, 20, 30, 30, 30]
-    
-    sendtext="```"
 
+    sendtext = "```"
 
+    for i in range(6):
+        sendtext += f"등급{i+1} : {minlevel[i]}~{maxlevel[i]}"
+    sendtext += "```"
 
-    for i in range(6) :
-        sendtext+=f"등급{i+1} : {minlevel[i]}~{maxlevel[i]}}"
-    sendtext+="```"
 
 @bot.command()
 async def 버전(ctx):
     await ctx.send(version)
+
 
 @bot.command()
 async def 운영자지급(ctx, server, user, moa):
