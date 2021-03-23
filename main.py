@@ -29,7 +29,7 @@ from bs4 import BeautifulSoup
 import requests
 
 
-version = "V2.21.03.17"
+version = "V2.21.03.18"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="$", intents=intents)
@@ -49,6 +49,7 @@ else:
     exit()
 
 if not testMode:  # 정식 모드
+    token = json.load()
     token = "NzY4MjgzMjcyOTQ5Mzk5NjEy.X4-Njg.NfyDMPVlLmgLAf8LkX9p0s04QDY"
     project_id = "moabot-475bc"
     cred = credentials.Certificate(
@@ -103,6 +104,8 @@ async def 통계(ctx):
     betDict = {}
 
     for user in statInfo.keys():
+        if not "stats" in statInfo[user].keys():
+            continue
         if "betting" in statInfo[user]["stats"].keys():
             betStat = statInfo[user]["stats"]["betting"]
         else:
