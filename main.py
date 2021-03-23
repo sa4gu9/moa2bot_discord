@@ -49,7 +49,7 @@ else:
     exit()
 
 if not testMode:  # 정식 모드
-    token = json.load()
+    # token = json.load()
     token = "NzY4MjgzMjcyOTQ5Mzk5NjEy.X4-Njg.NfyDMPVlLmgLAf8LkX9p0s04QDY"
     project_id = "moabot-475bc"
     cred = credentials.Certificate(
