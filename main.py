@@ -19,31 +19,36 @@ from oauth2client.service_account import ServiceAccountCredentials
 import json
 import asyncio
 import datetime
+
 from modules import finance
 from modules import betting
 from modules import reinforce
+from modules import result_bet
+
+from bs4 import BeautifulSoup
+import requests
 
 
-version = "V2.21.03.16"
+version = "V2.21.03.17"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="$", intents=intents)
 token = ""
 
-testint = 0
+testMode = None
 cred = None
 dbfs = None
 
 currentOpen = input("현재 열고있는 창이 gcp면 gcp를 입력, vscode면 vscode를 입력해주세요.")
 
 if currentOpen == "gcp":
-    testint = 0
+    testMode = False
 elif currentOpen == "vscode":
-    testint = 1
+    testMode = True
 else:
     exit()
 
-if testint == 0:  # 정식 모드
+if not testMode:  # 정식 모드
     token = "NzY4MjgzMjcyOTQ5Mzk5NjEy.X4-Njg.NfyDMPVlLmgLAf8LkX9p0s04QDY"
     project_id = "moabot-475bc"
     cred = credentials.Certificate(
@@ -53,8 +58,8 @@ if testint == 0:  # 정식 모드
     firebase_admin.initialize_app(
         cred, {"databaseURL": "https://moabot-475bc.firebaseio.com/"}
     )
-if testint == 1:  # 테스트 모드
-
+else:  # 테스트 모드
+    version = f"TEST {version}"
     token = "NzY4MzcyMDU3NDE0NTY1OTA4.X4_gPg.fg2sLq5F1ZJr9EwIgA_hiVHtfjQ"
     project_id = "moa2bot-test"
     cred = credentials.Certificate(
@@ -81,13 +86,43 @@ spreadsheet_url = "https://docs.google.com/spreadsheets/d/19iLk22PYIOFPYGvheWymX
 
 @bot.event
 async def on_ready():
-    if testint == 1:
+    if testMode == 1:
         channel = bot.get_channel(805826344842952775)
         await channel.send("moa2bot test")
     test.start()
     await bot.change_presence(
         status=discord.Status.online, activity=discord.Game(f"{version} $도움말")
     )
+
+
+@bot.command()
+async def 통계(ctx):
+    stat = db.reference(f"servers/server{ctx.guild.id}/users")
+    statInfo = stat.get()
+
+    betDict = {}
+
+    for user in statInfo.keys():
+        if "betting" in statInfo[user]["stats"].keys():
+            betStat = statInfo[user]["stats"]["betting"]
+        else:
+            continue
+        for bet in betStat.keys():
+            realBet = betStat[bet]
+            print(realBet["win"])
+            if bet in betDict.keys():
+                betDict[f"{bet}_fail"] += realBet["fail"]
+                betDict[f"{bet}_success"] += realBet["success"]
+            else:
+                betDict[f"{bet}_fail"] = realBet["fail"]
+                betDict[f"{bet}_success"] = realBet["success"]
+
+    sendData = "```"
+    for key in betDict.keys():
+        sendData += f"{key} : {betDict[key]}\n"
+    sendData += "```"
+
+    await ctx.send(sendData)
 
 
 @bot.command()
@@ -463,8 +498,6 @@ async def 강화(ctx, grade=None, level=None):
 
         unknown_have = reinforce.GetUnknown(user_ref, f"/등급{grade}")
         destroy_have = reinforce.GetUnknown(user_ref, "/destroy")
-
-        fin_ref = user_ref.child("재산")
 
         if await checkunknown(unknown_have, ctx) == -1:
             return
@@ -1409,7 +1442,7 @@ async def 모두(ctx):
 
 
 @bot.command()
-async def 주사위(ctx, mode=None):
+async def 주사위(ctx, mode=None, money=None):
     now = datetime.datetime.now()
     result = random.randint(1, 100)
     if mode == None:
@@ -1494,6 +1527,316 @@ async def 운영자지급(ctx, server, user, moa):
         await ctx.send(f"{discordServer.name}의 {user.get()['nickname']}에게 {moa}모아 지급")
     else:
         await ctx.send("운영자가 아닙니다.")
+
+
+freeReinCooldown = []
+
+
+@bot.command()
+async def 무료강화(ctx, Info=None):
+    if ctx.author.id in freeReinCooldown:
+        await ctx.message.delete()
+        return
+
+    user = GetUserInfo(ctx).get()
+
+    if Info == "순위":
+        forNickname = db.reference(f"servers/server{ctx.guild.id}/users")
+        forRank = db.reference(f"free_reinforce/server{ctx.guild.id}").get()
+
+        reinInfo = {}
+        print(forRank.keys())
+        for user in forRank.keys():
+            userInfo = forNickname.child(user).get()
+            if userInfo == None:
+                continue
+            nickname = userInfo["nickname"]
+            nickname = re.sub(r"\[.+\]", r"", nickname)
+            reinInfo[nickname] = forRank[user]["level"]
+            print(reinInfo)
+        sortedDict = sorted(reinInfo, reverse=True)
+
+        print(sortedDict)
+
+        sendtext = "```"
+
+        for key in sortedDict:
+            sendtext += f"{key} : {reinInfo[key]}\n"
+
+        sendtext += "```"
+
+        await ctx.send(sendtext)
+        return
+
+    if user == None:
+        await ctx.send("가입을 해주세요.")
+        return
+
+    resultInfo = {1: "success", 0: "fail", -10: "destroy"}
+
+    maxlevel = 45
+    freereinDB = db.reference(
+        f"free_reinforce/server{ctx.guild.id}/user{ctx.author.id}"
+    )
+    reinData = freereinDB.get()
+    if reinData == None:
+        freereinDB.update({f"level": 1, "fail": 0})
+        await ctx.send("강화 0>1 성공!")
+    else:
+        level = reinData[f"level"]
+        if level == maxlevel:
+            await ctx.send("최고레벨입니다.")
+            return
+        change, success = reinforce.DoReinfoce(level, 2, reinData["fail"])
+        if change != -10:
+            if change == 1:
+                freereinDB.update({f"level": level + change, "fail": 0})
+
+            else:
+                freereinDB.update({f"fail": reinData["fail"] + 1})
+        else:
+            freereinDB.update({f"level": None, "fail": None})
+        await ctx.send(
+            f"{level} >> {int(level)+1}   {reinData['fail']+1}트의 결과 : **{resultInfo[change]}** (성공확률 : {'{0:.2f}'.format(success)}%)"
+        )
+        freeReinCooldown.append(ctx.author.id)
+        await ctx.send(f"쿨타임 {'{0:.2f}'.format(level*0.2)}초 걸림")
+
+        if change == 1:
+            userdb = db.reference(
+                f"servers/server{ctx.guild.id}/users/user{ctx.author.id}"
+            )
+            if level + change == 15:
+                finance.ChangeMoney(userdb, 3000000)
+                await ctx.send("300만 모아")
+            elif level + change == 30:
+                finance.ChangeMoney(userdb, 15000000)
+                await ctx.send("1500만 모아")
+            elif level + change == 45:
+                finance.ChangeMoney(userdb, 500000000)
+                await ctx.send("5억 모아")
+
+        await asyncio.sleep(level * 0.2)
+        freeReinCooldown.remove(ctx.author.id)
+
+
+@bot.command()
+async def 오늘의베팅(ctx, myteam=None, moa=None):
+    if testMode:
+        playList = []
+        scoreList = []
+        url = "https://search.naver.com/search.naver?sm=tab_hty.top&where=nexearch&query=%EB%A1%A4%EC%B1%94%EC%8A%A4+%EC%9D%BC%EC%A0%95"
+        webpage = requests.get(url)
+        soup = BeautifulSoup(webpage.content, "html.parser")
+        for content in soup.find_all("a", class_="team_name"):
+            text = str(content)
+            print(text)
+            playList.append(
+                re.sub(
+                    r"<.+?>",
+                    "",
+                    text,
+                    0,
+                )
+            )
+
+        for score in soup.find_all("span", class_="team_score"):
+
+            text = str(score)
+            score = re.sub(
+                r"<.+?>",
+                "",
+                text,
+                0,
+            )
+            scoreList.append(int(score))
+
+        index = 0
+        teams = []
+
+        while index < len(scoreList):
+            print(
+                f"{playList[index]} {scoreList[index]} : {scoreList[index+1]} {playList[index+1]}"
+            )
+            if scoreList[index] + scoreList[index + 1] != 0:
+                index += 2
+            else:
+                sendText = f"{playList[index]} {scoreList[index]} : {scoreList[index+1]} {playList[index+1]}"
+                teams.append(playList[index])
+                teams.append(playList[index + 1])
+                break
+
+        print(myteam)
+        if myteam == None:
+            await ctx.send(sendText)
+            bettingInfo = db.reference(f"result_bet/server{ctx.guild.id}")
+            betData = bettingInfo.get()
+            if betData == None:
+                await ctx.send(sendText)
+                sendText = "```"
+                for t in teams:
+                    sendText += t + "\n"
+
+                sendText += "```"
+                await ctx.send(sendText)
+            else:
+                totalBet = {}
+                for key in betData.keys():
+                    if betData[key]["team"] in totalBet.keys():
+                        totalBet[betData[key]["team"]] += betData[key]["moa"]
+                    else:
+                        totalBet[betData[key]["team"]] = betData[key]["moa"]
+                await ctx.send(totalBet)
+
+                betList = totalBet.keys()
+                url = "https://search.naver.com/search.naver?sm=tab_hty.top&where=nexearch&query="
+                for team in betList:
+                    url += team + " "
+                webpage = requests.get(url)
+                soup = BeautifulSoup(webpage.content, "html.parser")
+
+                realteam = []
+                realScore = []
+                if len(betList) == 1:
+                    findResult = soup.find_all("a", class_="team_name")
+                    print(findResult)
+                    for result in findResult:
+                        team = re.sub(
+                            r"<.+?>",
+                            "",
+                            str(result),
+                            0,
+                        )
+                        realteam.append(team)
+                    findResult = soup.find_all("span", class_="team_score")
+                    for result in findResult:
+                        score = re.sub(
+                            r"<.+?>",
+                            "",
+                            str(result),
+                            0,
+                        )
+                        realScore.append(int(score))
+
+                    if 2 in realScore:
+                        winIndex = realScore.index(2)
+                        winTeam = realteam[winIndex]
+
+                        betSum = sum(betData.values())
+                        winSUm = totalBet[winTeam]
+
+                        returnResult = winSUm / betSum
+
+                        for key in betData.keys():
+                            user = db.reference(
+                                f"servers/server{ctx.guild.id}/users/{key}"
+                            )
+
+                            result = result_bet.CheckResult(
+                                user, betData, key, returnResult, winTeam
+                            )
+                            user = bot.get_user(int(str(key).replace("user", "")))
+                            if result == 1:
+                                user.send(
+                                    f"{betData[key]['team']}의 승리를 맞춰서 {betData[key]['moa']}모아를 걸고 {getMoney}모아를 얻었습니다."
+                                )
+                            else:
+                                user.send(
+                                    f"{betData[key]['team']}이 패배해서 {betData[key]['moa']}모아를 잃었습니다."
+                                )
+
+                            bettingInfo.child(key).set(None)
+
+                else:
+                    findResult = soup.find("span", class_="state_label")
+                    result = re.sub(
+                        r"<.+?>",
+                        "",
+                        str(findResult),
+                        0,
+                    )
+
+                    if result == "종료":
+                        findResult = soup.find("div", class_="table_area").find_all(
+                            "strong"
+                        )
+                        for result in findResult:
+                            score = re.sub(
+                                r"<.+?>",
+                                "",
+                                str(result),
+                                0,
+                            )
+                            realScore.append(int(score))
+
+                        winIndex = realScore.index(2)
+                        winTeam = realteam[winIndex]
+
+                        betSum = sum(betData.values())
+                        winSUm = totalBet[winTeam]
+
+                        returnResult = winSUm / betSum
+
+                        for key in betData.keys():
+                            user = db.reference(
+                                f"servers/server{ctx.guild.id}/users/{key}"
+                            )
+
+                            result = result_bet.CheckResult(
+                                user, betData, key, returnResult, winTeam
+                            )
+                            user = bot.get_user(int(str(key).replace("user", "")))
+                            if result == 1:
+                                user.send(
+                                    f"{betData[key]['team']}의 승리를 맞춰서 {betData[key]['moa']}모아를 걸고 {getMoney}모아를 얻었습니다."
+                                )
+                            else:
+                                user.send(
+                                    f"{betData[key]['team']}이 패배해서 {betData[key]['moa']}모아를 잃었습니다."
+                                )
+
+                            bettingInfo.child(key).set(None)
+
+                    else:
+                        pass
+
+        else:
+            if myteam in teams:
+                userdb = db.reference(
+                    f"result_bet/server{ctx.guild.id}/user{ctx.author.id}"
+                )
+                financedb = db.reference(
+                    f"servers/server{ctx.guild.id}/users/user{ctx.author.id}"
+                )
+                if moa == None:
+                    await ctx.send("베팅할 모아를 입력해주세요.")
+                else:
+
+                    data = userdb.get()
+                    if data == None:
+
+                        result = finance.ChangeMoney(financedb, -int(moa))
+                        if result == -1:
+                            await ctx.send("베팅할 모아가 부족합니다.")
+                            return
+                        else:
+                            await ctx.send(f"{myteam}에 {moa}모아 베팅")
+                            userdb.update({"team": myteam, "moa": int(moa)})
+                    else:
+                        if data["team"] == myteam:
+                            result = finance.ChangeMoney(financedb, -int(moa))
+                            if result == -1:
+                                await ctx.send("베팅할 모아가 부족합니다.")
+                                return
+                            else:
+                                await ctx.send(f"{myteam}에 {moa}모아 베팅")
+                            userdb.update({"moa": data["moa"] + int(moa)})
+                        else:
+                            await ctx.send("2개의 팀에 베팅을 할 수 없습니다.")
+            else:
+                await ctx.send("팀을 잘못 입력했습니다.")
+    else:
+        await ctx.send("테스트 중입니다.")
 
 
 bot.run(token)
