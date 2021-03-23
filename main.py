@@ -104,22 +104,21 @@ async def 통계(ctx):
     betDict = {}
 
     for user in statInfo.keys():
-        print(statInfo[user].keys())
         if not "stats" in statInfo[user].keys():
-            continue
-        if "betting" in statInfo[user]["stats"].keys():
-            betStat = statInfo[user]["stats"]["betting"]
+            print(user)
         else:
-            continue
-        for bet in betStat.keys():
-            realBet = betStat[bet]
-            print(realBet["win"])
-            if bet in betDict.keys():
-                betDict[f"{bet}_fail"] += realBet["fail"]
-                betDict[f"{bet}_success"] += realBet["success"]
-            else:
-                betDict[f"{bet}_fail"] = realBet["fail"]
-                betDict[f"{bet}_success"] = realBet["success"]
+            if "betting" in statInfo[user]["stats"].keys():
+                betStat = statInfo[user]["stats"]["betting"]
+
+                for bet in betStat.keys():
+                    print(bet)
+                    realBet = betStat[bet]
+                    if bet in betDict.keys():
+                        betDict[f"{bet}_fail"] += realBet["fail"]
+                        betDict[f"{bet}_success"] += realBet["success"]
+                    else:
+                        betDict[f"{bet}_fail"] = realBet["fail"]
+                        betDict[f"{bet}_success"] = realBet["success"]
 
     sendData = "```"
     for key in betDict.keys():
