@@ -29,7 +29,7 @@ from bs4 import BeautifulSoup
 import requests
 
 
-version = "V2.21.03.18"
+version = "V2.21.03.19"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="$", intents=intents)
@@ -113,12 +113,17 @@ async def 통계(ctx):
                 for bet in betStat.keys():
                     realBet = betStat[bet]
                     print(f"{user} {bet} : {realBet}")
-                    if bet in betDict.keys():
+                    if f"{bet}_fail" in betDict.keys():
                         betDict[f"{bet}_fail"] += realBet["fail"]
-                        betDict[f"{bet}_success"] += realBet["success"]
                     else:
                         betDict[f"{bet}_fail"] = realBet["fail"]
+
+                    if f"{bet}_success" in betDict.keys():
+                        betDict[f"{bet}_success"] += realBet["success"]
+                    else:
                         betDict[f"{bet}_success"] = realBet["success"]
+
+                    print(betDict)
 
     sendData = "```"
     for key in betDict.keys():
