@@ -104,6 +104,7 @@ async def 통계(ctx):
     betDict = {}
 
     for user in statInfo.keys():
+        print(statInfo[user].keys())
         if not "stats" in statInfo[user].keys():
             continue
         if "betting" in statInfo[user]["stats"].keys():
