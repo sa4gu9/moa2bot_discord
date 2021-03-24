@@ -1708,6 +1708,7 @@ async def 오늘의베팅(ctx, myteam=None, moa=None):
 
                 realteam = []
                 realScore = []
+                winscore = 2
                 if len(betList) == 1:
                     findResult = soup.find_all("a", class_="team_name")
                     print(findResult)
@@ -1729,8 +1730,8 @@ async def 오늘의베팅(ctx, myteam=None, moa=None):
                         )
                         realScore.append(int(score))
 
-                    if 2 in realScore:
-                        winIndex = realScore.index(2)
+                    if winscore in realScore:
+                        winIndex = realScore.index(winscore)
                         winTeam = realteam[winIndex]
 
                         betSum = sum(betData.values())
@@ -1780,7 +1781,7 @@ async def 오늘의베팅(ctx, myteam=None, moa=None):
                             )
                             realScore.append(int(score))
 
-                        winIndex = realScore.index(2)
+                        winIndex = realScore.index(winscore)
                         winTeam = realteam[winIndex]
 
                         betSum = sum(betData.values())
