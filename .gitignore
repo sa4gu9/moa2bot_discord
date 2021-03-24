@@ -166,3 +166,6 @@ token.json
 modules/moa2bot*.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode
+moabot-real.json
+modules/moabot-test.json
+modules/spreadjson.json
