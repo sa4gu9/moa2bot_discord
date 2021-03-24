@@ -1111,7 +1111,7 @@ def StoreReset(ref, curVersion, ctx):
     ref.child("의문의 물건 상자 B").set({"price": 300000, "amount": 500})
     ref.child("의문의 물건 상자 A").set({"price": 6000000, "amount": 250})
     ref.child("LAByteCoin 1개 교환권(상장가 10만모아)").set({"price": 70000, "amount": 200})
-    ref.child("서버 시즌 초기화").set({"price": 10000000000, "amount": 1})
+    ref.child("시즌 종료 티켓").set({"price": 10000000000, "amount": 1})
     ref.update({"version": curVersion})
 
 
