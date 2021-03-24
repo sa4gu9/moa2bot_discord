@@ -20,16 +20,13 @@ import json
 import asyncio
 import datetime
 
-from modules import finance
-from modules import betting
-from modules import reinforce
-from modules import result_bet
+from modules import finance, betting, reinforce, result_bet
 
 from bs4 import BeautifulSoup
 import requests
 
 
-version = "V2.21.03.19"
+version = "V2.21.03.20"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="$", intents=intents)
@@ -48,9 +45,10 @@ elif currentOpen == "vscode":
 else:
     exit()
 
+tokenfile = open("token.json")
+
+
 if not testMode:  # 정식 모드
-    # token = json.load()
-    token = "NzY4MjgzMjcyOTQ5Mzk5NjEy.X4-Njg.NfyDMPVlLmgLAf8LkX9p0s04QDY"
     project_id = "moabot-475bc"
     cred = credentials.Certificate(
         "moabot-475bc-firebase-adminsdk-dlp6a-e629cf966b.json"
@@ -59,9 +57,9 @@ if not testMode:  # 정식 모드
     firebase_admin.initialize_app(
         cred, {"databaseURL": "https://moabot-475bc.firebaseio.com/"}
     )
+    token = json.load(tokenfile)["gcp"]
 else:  # 테스트 모드
     version = f"TEST {version}"
-    token = "NzY4MzcyMDU3NDE0NTY1OTA4.X4_gPg.fg2sLq5F1ZJr9EwIgA_hiVHtfjQ"
     project_id = "moa2bot-test"
     cred = credentials.Certificate(
         "modules/moa2bot-test-firebase-adminsdk-mog9b-41fe3e4992.json"
@@ -70,6 +68,7 @@ else:  # 테스트 모드
     firebase_admin.initialize_app(
         cred, {"databaseURL": "https://moa2bot-test-default-rtdb.firebaseio.com/"}
     )
+    token = json.load(tokenfile)["vscode"]
 
 
 dbfs = firestore.client()
@@ -83,6 +82,14 @@ json_file_name = "modules/studious-loader-270209-3df64a0c2e46.json"
 credentials = ServiceAccountCredentials.from_json_keyfile_name(json_file_name, scope)
 gc = gspread.authorize(credentials)
 spreadsheet_url = "https://docs.google.com/spreadsheets/d/19iLk22PYIOFPYGvheWymXn-y76NetlAlcGxKthOfewk/edit#gid=178327547"
+
+
+@bot.event
+async def on_message(message):
+    for mention in message.mentions:
+        if mention.id == 768372057414565908:
+            await message.channel.send("답장받음")
+    await bot.process_commands(message)
 
 
 @bot.event
@@ -1104,11 +1111,7 @@ def StoreReset(ref, curVersion, ctx):
     ref.child("의문의 물건 상자 B").set({"price": 300000, "amount": 500})
     ref.child("의문의 물건 상자 A").set({"price": 6000000, "amount": 250})
     ref.child("LAByteCoin 1개 교환권(상장가 10만모아)").set({"price": 70000, "amount": 200})
-
-    if ctx.guild.id == 702739996947251231:
-        ref.child("로스트아크 30골드(수수료 미포함) 교환권").set({"price": 1000000000, "amount": 10})
-        ref.child("건빵 한봉지").set({"price": 2000000000, "amount": 5})
-        ref.child("베스킨라빈스 파인트 기프티콘").set({"price": 10000000000, "amount": 1})
+    ref.child("서버 시즌 초기화").set({"price": 10000000000, "amount": 1})
     ref.update({"version": curVersion})
 
 
@@ -1741,7 +1744,7 @@ async def 오늘의베팅(ctx, myteam=None, moa=None):
                             )
 
                             result = result_bet.CheckResult(
-                                user, betData, key, returnResult, winTeam
+                                user, betData, key, returnResult, winTeam, finanace
                             )
                             user = bot.get_user(int(str(key).replace("user", "")))
                             if result == 1:
@@ -1791,7 +1794,7 @@ async def 오늘의베팅(ctx, myteam=None, moa=None):
                             )
 
                             result = result_bet.CheckResult(
-                                user, betData, key, returnResult, winTeam
+                                user, betData, key, returnResult, winTeam, finance
                             )
                             user = bot.get_user(int(str(key).replace("user", "")))
                             if result == 1:
