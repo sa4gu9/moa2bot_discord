@@ -46,29 +46,29 @@ else:
     exit()
 
 tokenfile = open("token.json")
+important = json.load(tokenfile)
 
 
 if not testMode:  # 정식 모드
-    project_id = "moabot-475bc"
-    cred = credentials.Certificate(
-        "moabot-475bc-firebase-adminsdk-dlp6a-e629cf966b.json"
-    )
+    jsoncon = important["gcp"]
+
+    project_id = jsoncon["project_id"]
+    token = jsoncon["token"]
+
+    cred = credentials.Certificate(jsoncon["filepath"])
     print("gcp")
-    firebase_admin.initialize_app(
-        cred, {"databaseURL": "https://moabot-475bc.firebaseio.com/"}
-    )
-    token = json.load(tokenfile)["gcp"]
+    firebase_admin.initialize_app(cred, {"databaseURL": jsoncon["databaseurl"]})
+
 else:  # 테스트 모드
+    jsoncon = important["vscode"]
+
+    project_id = jsoncon["project_id"]
+    token = jsoncon["token"]
+
     version = f"TEST {version}"
-    project_id = "moa2bot-test"
-    cred = credentials.Certificate(
-        "modules/moa2bot-test-firebase-adminsdk-mog9b-41fe3e4992.json"
-    )
+    cred = credentials.Certificate(jsoncon["filepath"])
     print("vscode")
-    firebase_admin.initialize_app(
-        cred, {"databaseURL": "https://moa2bot-test-default-rtdb.firebaseio.com/"}
-    )
-    token = json.load(tokenfile)["vscode"]
+    firebase_admin.initialize_app(cred, {"databaseURL": jsoncon["databaseurl"]})
 
 
 dbfs = firestore.client()
@@ -78,10 +78,10 @@ scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive",
 ]
-json_file_name = "modules/studious-loader-270209-3df64a0c2e46.json"
+json_file_name = important["spreadsheetjson"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name(json_file_name, scope)
 gc = gspread.authorize(credentials)
-spreadsheet_url = "https://docs.google.com/spreadsheets/d/19iLk22PYIOFPYGvheWymXn-y76NetlAlcGxKthOfewk/edit#gid=178327547"
+spreadsheet_url = important["spreadsheeturl"]
 
 
 @bot.event
