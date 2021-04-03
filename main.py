@@ -539,13 +539,19 @@ async def 강화(ctx, grade=None, level=None):
                 await ctx.send(
                     f"등급{grade}는 최소레벨이 {minlevel[grade - 1]}이므로 {level}이 {minlevel[grade - 1]}이 되었습니다."
                 )
+                unknown_have.update({f"레벨{level}": unknown_dict[f"레벨{level}"] - 1})
 
-                unknown_have[f"레벨{level}"] -= 1
-
-                if f"레벨{level}" in unknown_have.keys():
-                    unknown_have[f"레벨{level}"] += 1
+                if f"레벨{minlevel[grade - 1]}" in unknown_dict.keys():
+                    unknown_have.update(
+                        {
+                            f"레벨{minlevel[grade - 1]}": unknown_dict[
+                                f"레벨{minlevel[grade - 1]}"
+                            ]
+                            + 1
+                        }
+                    )
                 else:
-                    unknown_have[f"레벨{level}"] = 1
+                    unknown_have.update({f"레벨{minlevel[grade - 1]}": 1})
 
                 return
 
@@ -635,8 +641,9 @@ async def 강화(ctx, grade=None, level=None):
             else:
                 await ctx.send("입력한 레벨의 의문의 물건을 가지고 있지 않습니다.")
 
-    except:
+    except Exception as e:
         await ctx.send("의문의 물건 등급 또는 레벨을 숫자로 입력해주세요.")
+        print(e)
 
 
 @bot.command()
