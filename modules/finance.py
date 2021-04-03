@@ -1,7 +1,9 @@
 def ChangeMoney(user, moa):
     userfinance = user.child("재산")
 
-    if userfinance.get()["money"] + int(moa) < 0:
-        return -1
-    userfinance.update({"money": userfinance.get()["money"] + int(moa)})
+    fina=userfinance.get()
+
+    if fina["money"] + int(moa) < 0:
+        return -1,int(moa)-fina["money"]
+    userfinance.update({"money": fina["money"] + int(moa)})
     return 1

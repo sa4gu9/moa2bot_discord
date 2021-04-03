@@ -2,8 +2,18 @@ import random
 
 
 def GetUnknown(user_ref, add=None):
-    unknown_have = user_ref.child(f"inventory/의문의 물건{add}").get()
+    unknown_have = user_ref.child(f"inventory/의문의 물건{add}")
     return unknown_have
+
+
+def CheckUnknown(grade, level):
+    # 등급 2~3이고 최소레벨 미만일때
+
+    # 등급 4일때
+    # 레벨 20미만일때
+
+    # 등급 5,6일때
+    return
 
 
 def DoReinfoce(level, mode=1, fail=None):
