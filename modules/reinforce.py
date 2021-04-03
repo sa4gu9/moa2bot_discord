@@ -6,18 +6,40 @@ def GetUnknown(user_ref, add=None):
     return unknown_have
 
 
-def CheckUnknown(grade, level):
-    # 등급 2~3이고 최소레벨 미만일때
+def CheckUnknown(grade, level, unknown_have, unknown_dict, mode):
 
-    # 등급 4일때
-    # 레벨 20미만일때
+    minlevel = [1, 10, 20]
+    maxlevel = [10, 20, 30]
+
+    # 등급 2~3이고 최소레벨 미만일때
+    if mode == 1:
+        unknown_have.update({f"레벨{level}": unknown_dict[f"레벨{level}"] - 1})
+
+        if f"레벨{minlevel[grade - 1]}" in unknown_dict.keys():
+            unknown_have.update(
+                {
+                    f"레벨{minlevel[grade - 1]}": unknown_dict[f"레벨{minlevel[grade - 1]}"]
+                    + 1
+                }
+            )
+        else:
+            unknown_have.update({f"레벨{minlevel[grade - 1]}": 1})
+
+    # 등급 4+등급 20이상일때
+    elif mode == 2:
+        return
+    # 등급 4+등급 20미만일때
+    elif mode == 3:
+        return
 
     # 등급 5,6일때
-    return
+    elif mode == 4:
+        return
 
 
 def DoReinfoce(level, mode=1, fail=None):
     notchange = 0
+    sucBonus = 0
     if mode == 1:
         sucnum = 2.77
         failnum = 1.53
@@ -32,15 +54,14 @@ def DoReinfoce(level, mode=1, fail=None):
         destroy = (level - 1) * desnum
         notchange = 100 - success - fail - destroy
     elif mode == 2:
-        sucnum = 6.53
-        desnum = 0.09
+        sucnum = 7.41
 
-        sucBonus = 6 - (level - 1) * 0.13
+        sucBonus = 6 - (level - 1) * 0.12
 
-        success = 100 - sucnum * (level // 3 + 1) + sucBonus * fail
+        success = 100 - sucnum * (level // 3 + 1)
 
-        destroy = (level - 1) * desnum
-        fail = 100 - success - destroy
+        destroy = 0
+        fail = 100 - success
 
         print(fail)
 
@@ -49,7 +70,7 @@ def DoReinfoce(level, mode=1, fail=None):
     result = random.random() * 100
     print(result)
 
-    if result < success:
+    if result < success or sucBonus >= 100:
         change = 1
     elif result < success + notchange:
         change = 0
@@ -61,4 +82,4 @@ def DoReinfoce(level, mode=1, fail=None):
     else:
         change = -10
 
-    return change, success
+    return change, success, sucBonus
