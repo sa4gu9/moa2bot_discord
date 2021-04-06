@@ -54,11 +54,11 @@ def DoReinfoce(level, mode=1, fail=None):
         destroy = (level - 1) * desnum
         notchange = 100 - success - fail - destroy
     elif mode == 2:
-        sucnum = 7.41
+        sucnum = 3.98
 
-        sucBonus = 6 - (level - 1) * 0.12
+        sucBonus = (20 - (level - 1) * 0.41) * fail
 
-        success = 100 - sucnum * (level // 3 + 1)
+        success = 100 - sucnum * (level // 2 + 1)
 
         destroy = 0
         fail = 100 - success

@@ -20,7 +20,7 @@ import json
 import asyncio
 import datetime
 
-from modules import finance, betting, reinforce, result_bet
+from modules import finance, betting, reinforce, result_bet, store, user
 
 from bs4 import BeautifulSoup
 import requests
@@ -153,7 +153,7 @@ async def 가입(ctx, nickname):
     for i in random.sample(password_pool, 15):
         password += i
 
-    direct = GetUserInfo(ctx)
+    direct = user.GetUserInfo(ctx, db)
 
     if direct.get() == None:
 
@@ -177,7 +177,7 @@ async def 가입(ctx, nickname):
 
 @bot.command()
 async def 베팅(ctx, mode=None, moa=10000):
-    refer = GetUserInfo(ctx)
+    refer = user.GetUserInfo(ctx, db)
 
     if refer.get() == None:
         await ctx.send(f"가입이 필요합니다.")
@@ -308,7 +308,7 @@ def GetBeggingMoa():
 @commands.cooldown(1, 30, commands.BucketType.user)
 @bot.command()
 async def 구걸(ctx):
-    doc_ref = GetUserInfo(ctx)
+    doc_ref = user.GetUserInfo(ctx, db)
 
     doc = doc_ref.get()
     if doc != None:
@@ -345,7 +345,7 @@ async def mine_error(ctx, error):
 
 @bot.command()
 async def 자산(ctx):
-    direct = GetUserInfo(ctx)
+    direct = user.GetUserInfo(ctx, db)
 
     doc = direct.get()
     if doc != None:
@@ -359,7 +359,7 @@ async def 자산(ctx):
 
 @bot.command()
 async def 비밀번호(ctx):
-    direct = GetUserInfo(ctx)
+    direct = user.GetUserInfo(ctx, db)
 
     doc = direct.get()
     if doc != None:
@@ -378,7 +378,7 @@ async def 상자열기(ctx, boxName, amount=1):
     direct = None
     realLuck = None
 
-    userdir = GetUserInfo(ctx)
+    userdir = user.GetUserInfo(ctx, db)
     direct = userdir.child("inventory").get()
 
     if userdir.get() == None:
@@ -492,7 +492,7 @@ def CheckToday():
 @bot.command()
 async def 강화(ctx, grade=None, level=None):
     try:
-        user_ref = GetUserInfo(ctx)
+        user_ref = user.GetUserInfo(ctx, db)
         minlevel = [1, 10, 20]
         maxlevel = [10, 20, 30]
 
@@ -916,7 +916,7 @@ async def test():
 
 
 def ReturnInfo(ctx):
-    refer = GetUserInfo(ctx)
+    refer = user.GetUserInfo(ctx, db)
 
     userinfo = refer.get()
 
@@ -927,7 +927,7 @@ def ReturnInfo(ctx):
 
 
 def ChangeMoney(ctx, money, change):
-    userinfo = GetUserInfo(ctx).child("재산")
+    userinfo = user.GetUserInfo(ctx, db).child("재산")
 
     if change < 0:
         if abs(change) > money:
@@ -944,64 +944,7 @@ async def 상점(ctx, itemName=None, amount=1):
 
     curVersion = db.reference("version").get()["store"]
 
-    if storeInfo == None:
-        StoreReset(store_ref, curVersion, ctx)
-
-    if "version" in storeInfo.keys():
-        version = storeInfo["version"]
-
-        if version < curVersion:
-            StoreReset(store_ref, curVersion, ctx)
-            await ctx.send("상점이 갱신되었습니다.")
-            return
-    else:
-        StoreReset(store_ref, curVersion, ctx)
-        await ctx.send("상점이 갱신되었습니다.")
-        return
-
-    if itemName == None:
-        storeInfo = store_ref.get()
-        for key in storeInfo.keys():
-            if key == "version":
-                continue
-            await ctx.send(
-                f"{key}:{storeInfo[key]['price']}모아 {storeInfo[key]['amount']}개 남음"
-            )
-        return
-    else:
-        if store_ref.child(itemName).get() == None:
-            await ctx.send("상점에 없는 아이템입니다.")
-        else:
-            userInfo = GetUserInfo(ctx)
-            money, nickname = ReturnInfo(ctx)
-
-            if int(amount) > storeInfo[itemName]["amount"]:
-                await ctx.send("매진이거나 남은수량보다 많이 살 수 없습니다.")
-                return
-
-            totalPrice = storeInfo[itemName]["price"] * amount
-            have = 0
-            if money >= totalPrice:
-                # 아이템 보유 정보
-                userInfo = GetUserInfo(ctx)
-                userInfo.child("재산").update({"money": money - totalPrice})
-                inventoryInfo = userInfo.child("inventory").get()
-                store_ref.child(itemName).update(
-                    {"amount": storeInfo[itemName]["amount"] - amount}
-                )
-                if inventoryInfo == None:
-                    userInfo.child("inventory").update({itemName: amount})
-                else:
-
-                    if itemName in userInfo.child("inventory").get().keys():
-                        have = userInfo.child("inventory").get()[itemName]
-                        userInfo.child("inventory").update({itemName: have + amount})
-                    else:
-                        userInfo.child("inventory").update({itemName: amount})
-
-                await ctx.send(f"{nickname} {itemName} 구매 완료, {have+amount}개 보유중")
-            else:
-                await ctx.send(f"{totalPrice-money}모아가 부족합니다.")
+    store.UseStore(store_ref, storeInfo, curVersion, ctx, itemName, db, user, amount)
 
 
 def Additem(itemName):
@@ -1011,7 +954,7 @@ def Additem(itemName):
 @bot.command()
 async def 등급업(ctx, grade=None, level=None):
 
-    user_ref = GetUserInfo(ctx)
+    user_ref = user.GetUserInfo(ctx, db)
     minlevel = [1, 10, 20]
 
     if grade == "3":
@@ -1101,25 +1044,11 @@ async def 등급업(ctx, grade=None, level=None):
         return
 
 
-def GetUserInfo(ctx):
-    return db.reference(f"servers/server{ctx.guild.id}/users/user{ctx.author.id}")
-
-
-def StoreReset(ref, curVersion, ctx):
-    ref.child("의문의 물건 등급업 주문서").set({"price": 3000, "amount": 300})
-    ref.child("의문의 물건 상자 C").set({"price": 35000, "amount": 1000})
-    ref.child("의문의 물건 상자 B").set({"price": 300000, "amount": 500})
-    ref.child("의문의 물건 상자 A").set({"price": 6000000, "amount": 250})
-    ref.child("LAByteCoin 1개 교환권(상장가 10만모아)").set({"price": 70000, "amount": 200})
-    ref.child("시즌 종료 티켓").set({"price": 10000000000, "amount": 1})
-    ref.update({"version": curVersion})
-
-
 @bot.command()
 async def 건의(ctx):
-    user = GetUserInfo(ctx)
+    user1 = user.GetUserInfo(ctx, db)
 
-    if user.get() == None:
+    if user1.get() == None:
         await ctx.send("가입을 해야 건의를 할 수 있습니다.")
         return
 
@@ -1221,15 +1150,17 @@ async def 기부(ctx, userid=None, moa=None):
 @bot.command()
 async def 칭호(ctx, setn=None):
     allTitles = db.reference("titles").get()
-    user = GetUserInfo(ctx)
-    userTitles = user.child("titles").get()
+    user1 = user.GetUserInfo(ctx, db)
+    userTitles = user1.child("titles").get()
 
     if setn == None:
         for title in userTitles:
             await ctx.send(allTitles[title])
     else:
         change = re.sub(
-            r"\[.+\]", f"[{allTitles[userTitles[int(setn)]]}]", user.get()["nickname"]
+            r"\[.+\]",
+            f"[{allTitles[userTitles[int(setn)]]}]",
+            user1.get()["nickname"],
         )
         db.reference(f"servers/server{ctx.guild.id}/users/user{ctx.author.id}").update(
             {"nickname": change}
@@ -1271,7 +1202,7 @@ async def 의문의물건구매(ctx, grade=None, level=None):
 
                     realPrice = math.floor(buyPrice * 0.8)
 
-                    user = GetUserInfo(ctx)
+                    user = user.GetUserInfo(ctx, db)
 
                     userfinance = user.child("재산").get()
 
@@ -1317,7 +1248,7 @@ async def 의문의물건판매(ctx, grade=None, level=None, plus30=None):
     gc1 = gc.open("모아2봇 확률표").worksheet("의문의 물건 기댓값")
     sellPrice = int(gc1.cell(int(level) + 1, int(grade) + 1).value.replace(",", ""))
 
-    user_ref = GetUserInfo(ctx)
+    user_ref = user.GetUserInfo(ctx, db)
 
     unknown_have = reinforce.GetUnknown(user_ref, f"/등급{grade}")
     unknown_dict = unknown_have.get()
@@ -1389,9 +1320,9 @@ async def 의문의물건판매(ctx, grade=None, level=None, plus30=None):
 
 @bot.command()
 async def 보유현황(ctx):
-    user = GetUserInfo(ctx)
+    user1 = user.GetUserInfo(ctx, db)
 
-    inventory = user.child("inventory").get()
+    inventory = user1.child("inventory").get()
     sendText = "```"
 
     for key in inventory.keys():
@@ -1460,8 +1391,12 @@ async def 주사위(ctx, mode=None, money=None):
     if mode == None:
         await ctx.send(result)
     elif int(mode) == 1:
-        users = GetUserInfo(ctx)
+        users = user.GetUserInfo(ctx, db)
         today = users.child("today").get()
+
+        if today == None:
+            await ctx.send("가입을 해주세요.")
+            return
 
         if CheckToday() == 5:
             multiple = 12
@@ -1550,7 +1485,7 @@ async def 무료강화(ctx, Info=None):
         await ctx.message.delete()
         return
 
-    user = GetUserInfo(ctx).get()
+    user1 = user.GetUserInfo(ctx, db).get()
 
     if Info == "순위":
         forNickname = db.reference(f"servers/server{ctx.guild.id}/users")
@@ -1558,8 +1493,8 @@ async def 무료강화(ctx, Info=None):
 
         reinInfo = {}
         print(forRank.keys())
-        for user in forRank.keys():
-            userInfo = forNickname.child(user).get()
+        for user2 in forRank.keys():
+            userInfo = forNickname.child(user2).get()
             if userInfo == None:
                 continue
             nickname = userInfo["nickname"]
@@ -1580,7 +1515,7 @@ async def 무료강화(ctx, Info=None):
         await ctx.send(sendtext)
         return
 
-    if user == None:
+    if user1 == None:
         await ctx.send("가입을 해주세요.")
         return
 
@@ -1609,10 +1544,10 @@ async def 무료강화(ctx, Info=None):
         else:
             freereinDB.update({f"level": None, "fail": None})
         await ctx.send(
-            f"{level} >> {int(level)+1}   {reinData['fail']+1}트의 결과 : **{resultInfo[change]}** (성공확률 : {'{0:.2f}'.format(success)}%  성공의 기운 : {'{0:.2f}'.format(bonus)}%)"
+            f"{level} >> {int(level)+1}   {reinData['fail']+1}트의 결과 : **{resultInfo[change]}** (성공확률 : {'{0:.2f}'.format(success)}%  강화의 기운 : {'{0:.2f}'.format(bonus)}%)"
         )
         freeReinCooldown.append(ctx.author.id)
-        await ctx.send(f"쿨타임 {'{0:.2f}'.format(level*0.2)}초 걸림")
+        msg = await ctx.send(f"쿨타임 {'{0:.2f}'.format(level*0.2)}초 걸림")
 
         if change == 1:
             userdb = db.reference(
@@ -1630,6 +1565,7 @@ async def 무료강화(ctx, Info=None):
 
         await asyncio.sleep(level * 0.2)
         freeReinCooldown.remove(ctx.author.id)
+        await msg.delete()
 
 
 bot.run(token)
