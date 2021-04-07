@@ -22,3 +22,14 @@ def LostUnknown(userdir, itemgrade, itemlevel):
             haveInfo.update({f"레벨{itemlevel}": haveDict[f"레벨{itemlevel}"] - 1})
     else:
         return
+
+
+def GetInventory(user):
+    inventory = user.child("inventory").get()
+    sendText = "```"
+
+    for key in inventory.keys():
+        sendText += f"{key} : {inventory[key]}\n"
+    sendText += "```"
+
+    return sendText

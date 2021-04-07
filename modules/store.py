@@ -1,4 +1,4 @@
-def UseStore(store_ref, storeInfo, curVersion, ctx, itemName, db, user, amount):
+async def UseStore(store_ref, storeInfo, curVersion, ctx, itemName, db, user, amount):
     if storeInfo == None:
         StoreReset(store_ref, curVersion, ctx)
 

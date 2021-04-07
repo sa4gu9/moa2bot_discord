@@ -35,7 +35,7 @@ from bs4 import BeautifulSoup
 import requests
 
 
-version = "V2.21.03.21"
+version = "V2.21.05.01"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="$", intents=intents)
@@ -164,24 +164,13 @@ async def 가입(ctx, nickname):
 
     direct = user.GetUserInfo(ctx, db)
 
-    if direct.get() == None:
+    result = user.AddNewUser(direct, nickname, code, password)
 
-        firstData = {
-            "nickname": f"[첫 시작]{nickname}#{code}",
-            "titles": [0],
-            "password": password,
-        }
-
-        direct.set(firstData)
-
-        direct = direct.child("재산")
-        direct.set({"money": 200000})
-
+    if result == 1:
         await ctx.send(f"가입 완료 '[첫 시작]{nickname}#{code}'")
         await ctx.author.send(f"가입 완료, 당신의 비밀번호는 {password}입니다.")
     else:
         await ctx.send(f"이미 가입하였습니다.")
-        return
 
 
 @bot.command()
@@ -292,28 +281,6 @@ async def 베팅(ctx, mode=None, moa=10000):
         finance.ChangeMoney(refer, change)
 
 
-def GetBeggingMoa():
-    i = 1
-    cut = 0
-    getmoa = 0
-    result = random.random() * 100
-    while i <= 12:
-        cut += i
-        if result < cut:
-            getmoa = 32000 - 1000 * (i - 1)
-            break
-        else:
-            i += 1
-    if i == 1:
-        result = random.random() * 100
-        if result < 10:
-            getmoa *= 2
-    if i == 13:
-        getmoa = 2500
-
-    return getmoa
-
-
 @commands.cooldown(1, 30, commands.BucketType.user)
 @bot.command()
 async def 구걸(ctx):
@@ -321,7 +288,7 @@ async def 구걸(ctx):
 
     doc = doc_ref.get()
     if doc != None:
-        getmoa = GetBeggingMoa()
+        getmoa = finance.GetBeggingMoa()
 
         if todaymoa.CheckToday() == 6:
             getmoa *= 10
@@ -1234,19 +1201,9 @@ async def 의문의물건판매(ctx, grade=None, level=None, plus30=None):
                 else:
                     await ctx.send(f"{itemname}이 부족합니다.")
                     return
-        if f"레벨{level}" in unknown_dict.keys():
-            user_ref.child(f"inventory/의문의 물건/등급{grade}").update(
-                {f"레벨{level}": unknown_dict[f"레벨{level}"] - 1}
-            )
 
-            if unknown_dict[f"레벨{level}"] - 1 == 0:
-                user_ref.child(f"inventory/의문의 물건/등급{grade}").update(
-                    {unknown_dict[f"레벨{level}"]: None}
-                )
-            else:
-                user_ref.child(f"inventory/의문의 물건/등급{grade}").update(
-                    {f"레벨{level}": unknown_dict[f"레벨{level}"] - 1}
-                )
+        if f"레벨{level}" in unknown_dict.keys():
+            inventory.LostUnknown(user_ref, grade, level)
 
             if todaymoa.CheckToday() == 4:
                 todayUp = 1.2
@@ -1287,12 +1244,8 @@ async def 의문의물건판매(ctx, grade=None, level=None, plus30=None):
 async def 보유현황(ctx):
     user1 = user.GetUserInfo(ctx, db)
 
-    inventory = user1.child("inventory").get()
-    sendText = "```"
+    sendText = inventory.GetInventory(user1)
 
-    for key in inventory.keys():
-        sendText += f"{key} : {inventory[key]}\n"
-    sendText += "```"
     await ctx.send(sendText)
 
 
@@ -1335,16 +1288,7 @@ async def 도움말(ctx):
 async def 모두(ctx):
     users = db.reference(f"servers/server{ctx.guild.id}/users")
 
-    sendText = "```"
-
-    userInfo = users.get()
-
-    for user in userInfo.keys():
-        sendText += (
-            f"{userInfo[user]['nickname']} : {userInfo[user]['재산']['money']}모아\n"
-        )
-
-    sendText += "```"
+    sendText = user.GetAllServerUser(users)
 
     await ctx.send(sendText)
 
@@ -1369,7 +1313,7 @@ async def 주사위(ctx, mode=None, money=None):
             multiple = 1
 
         if today == None:
-            await UpdateDice(ctx, users, result, multiple)
+            await UpdateDice(ctx, users, result, multiple, now)
         else:
             if "dice" in today.keys():
                 if (
@@ -1379,24 +1323,20 @@ async def 주사위(ctx, mode=None, money=None):
                     await ctx.send("하루 1회만 가능합니다.")
                     return
                 else:
-                    await UpdateDice(ctx, users, result, multiple)
+                    await UpdateDice(ctx, users, result, multiple, now)
             else:
-                await UpdateDice(ctx, users, result, multiple)
+                await UpdateDice(ctx, users, result, multiple, now)
 
 
-async def UpdateDice(ctx, users, result, multiple):
-    now = datetime.datetime.now()
+async def UpdateDice(ctx, users, result, multiple, now):
     users.child("today").update({"dice": f"{now.year}-{now.month}-{now.day}"})
-    users.child("재산").update(
-        {"money": users.child("재산").get()["money"] + result * 10000 * multiple}
-    )
+    finance.ChangeMoney(users, result * 10000 * multiple)
     await ctx.send(f"결과 : {result}, {result*10000*multiple}모아 획득!")
 
 
 @bot.command()
 async def 오늘의모아봇(ctx):
-
-    await ctx.send()
+    await ctx.send(todaymoa.GetToday())
 
 
 @bot.command()
@@ -1448,23 +1388,21 @@ async def 무료강화(ctx, Info=None):
         forRank = db.reference(f"free_reinforce/server{ctx.guild.id}").get()
 
         reinInfo = {}
-        print(forRank.keys())
+
         for user2 in forRank.keys():
             userInfo = forNickname.child(user2).get()
             if userInfo == None:
                 continue
             nickname = userInfo["nickname"]
             nickname = re.sub(r"\[.+\]", r"", nickname)
-            reinInfo[nickname] = forRank[user]["level"]
-            print(reinInfo)
-        sortedDict = sorted(reinInfo, reverse=True)
+            reinInfo[nickname] = forRank[user2]["level"]
 
-        print(sortedDict)
+        sortedDict = sorted(reinInfo.items(), reverse=True, key=lambda item: item[1])
 
         sendtext = "```"
 
-        for key in sortedDict:
-            sendtext += f"{key} : {reinInfo[key]}\n"
+        for key, value in sortedDict:
+            sendtext += f"{key} : {value}\n"
 
         sendtext += "```"
 
