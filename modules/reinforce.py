@@ -1,7 +1,7 @@
 import random
 
 
-def GetUnknown(user_ref, add=None):
+def GetUnknownHave(user_ref, add=None):
     unknown_have = user_ref.child(f"inventory/의문의 물건{add}")
     return unknown_have
 

@@ -20,7 +20,16 @@ import json
 import asyncio
 import datetime
 
-from modules import finance, betting, reinforce, result_bet, store, user
+from modules import (
+    finance,
+    betting,
+    reinforce,
+    result_bet,
+    store,
+    user,
+    todaymoa,
+    inventory,
+)
 
 from bs4 import BeautifulSoup
 import requests
@@ -207,7 +216,7 @@ async def 베팅(ctx, mode=None, moa=10000):
             await ctx.send("보유량보다 많거나 0원 이하로 베팅하실 수 없습니다.")
             return
 
-        if CheckToday() == 0:
+        if todaymoa.CheckToday() == 0:
             bonus = 5
         else:
             bonus = 0
@@ -280,7 +289,7 @@ async def 베팅(ctx, mode=None, moa=10000):
             if betdict["total"] + int(moa) >= 1000000:
                 await GetTitle(ctx, refer.child("titles"), 2 + int(mode), nickname)
 
-        ChangeMoney(ctx, money, change)
+        finance.ChangeMoney(refer, change)
 
 
 def GetBeggingMoa():
@@ -314,7 +323,7 @@ async def 구걸(ctx):
     if doc != None:
         getmoa = GetBeggingMoa()
 
-        if CheckToday() == 6:
+        if todaymoa.CheckToday() == 6:
             getmoa *= 10
 
         money, nickname = ReturnInfo(ctx)
@@ -324,7 +333,7 @@ async def 구걸(ctx):
             구걸.reset_cooldown(ctx)
             return
 
-        ChangeMoney(ctx, money, getmoa)
+        finance.ChangeMoney(user.GetUserInfo(ctx, db), getmoa)
 
         await ctx.send(f"{nickname} {getmoa}모아 획득!")
 
@@ -481,12 +490,7 @@ async def 상자열기(ctx, boxName, amount=1):
                 f"의문의 물건 등급{itemgrade} {itemlevel}강({(format(percentcalc,'''.3f''')).rstrip('0')}%) 획득!"
             )
 
-            GetUnknown(userdir, itemgrade, itemlevel)
-
-
-def CheckToday():
-    print(datetime.datetime.now().weekday())
-    return datetime.datetime.now().weekday()
+            inventory.GetUnknown(userdir, itemgrade, itemlevel)
 
 
 @bot.command()
@@ -497,7 +501,7 @@ async def 강화(ctx, grade=None, level=None):
         maxlevel = [10, 20, 30]
 
         if grade == "destroy":
-            unknown_have = reinforce.GetUnknown(user_ref, "/destroy")
+            unknown_have = reinforce.GetUnknownHave(user_ref, "/destroy")
             unknown_dict = unknown_have.get()
 
             if await checkunknown(unknown_have, ctx) == -1:
@@ -515,8 +519,8 @@ async def 강화(ctx, grade=None, level=None):
         if grade < 1 or grade > 3:
             await ctx.send("의문의 물건은 1~3등급입니다.")
 
-        unknown_have = reinforce.GetUnknown(user_ref, f"/등급{grade}")
-        destroy_have = reinforce.GetUnknown(user_ref, "/destroy")
+        unknown_have = reinforce.GetUnknownHave(user_ref, f"/등급{grade}")
+        destroy_have = reinforce.GetUnknownHave(user_ref, "/destroy")
 
         unknown_dict = unknown_have.get()
         destroy_dict = destroy_have.get()
@@ -567,9 +571,8 @@ async def 강화(ctx, grade=None, level=None):
                 # 강화 비용을 구한다.
                 price = math.floor(1000 * ((50 * level) ** (0.05 * level)))
 
-                if CheckToday() == 2:
+                if todaymoa.CheckToday() == 2:
                     price = math.floor(price * 0.8)
-                    print(price)
 
                 # 가지고 있는 돈보다 강화 비용이 많으면 강화 불가
                 if price > money:
@@ -604,30 +607,14 @@ async def 강화(ctx, grade=None, level=None):
 
                             destroy_have.set(des_dict)
 
-                # change값에 따라 dictionary를 바꾼다. 단, change가 0이면 바꾸지 않는다.
-                print(unknown_have)
+                # change값에 따라 db를 바꾼다. 단, change가 0이면 바꾸지 않는다.
 
-                unknown_have[f"레벨{level}"] -= 1
+                inventory.LostUnknown(user_ref, grade, level)
 
-                if unknown_have[f"레벨{level}"] == 0:
-                    del unknown_have[f"레벨{level}"]
-
-                if change != 0 and change != -10:
-                    if f"레벨{level+change}" in unknown_have.keys():
-                        unknown_have[f"레벨{level+change}"] += 1
-                    else:
-                        unknown_have[f"레벨{level+change}"] = 1
-
-                print(unknown_have)
+                inventory.GetUnknown(user_ref, grade, level + change)
 
                 # 현재 가지고 있는 돈에서 강화비용을 빼고 firebase에 올린다.
-                ChangeMoney(ctx, money, -price)
-
-                # 바꾼 dictionary를 firebase에 올린다. 단, change가 0이면 바꾸지 않는다.
-                if change != 0:
-                    user_ref.child("inventory").child("의문의 물건").child(f"등급{grade}").set(
-                        unknown_have
-                    )
+                finance.ChangeMoney(user_ref, -price)
 
             else:
                 await ctx.send("입력한 레벨의 의문의 물건을 가지고 있지 않습니다.")
@@ -926,16 +913,6 @@ def ReturnInfo(ctx):
     return money, nickname
 
 
-def ChangeMoney(ctx, money, change):
-    userinfo = user.GetUserInfo(ctx, db).child("재산")
-
-    if change < 0:
-        if abs(change) > money:
-            return -1
-
-    userinfo.update({"money": money + change})
-
-
 @bot.command()
 async def 상점(ctx, itemName=None, amount=1):
     store_ref = db.reference(f"servers/server{ctx.guild.id}/store")
@@ -961,7 +938,7 @@ async def 등급업(ctx, grade=None, level=None):
         await ctx.send("최고등급입니다.")
         return
 
-    unknown_have = reinforce.GetUnknown(user_ref, f"/등급{grade}")
+    unknown_have = reinforce.GetUnknownHave(user_ref, f"/등급{grade}")
     unknown_dict = unknown_have.get()
     if await checkunknown(unknown_dict, ctx) == -1:
         return
@@ -981,7 +958,7 @@ async def 등급업(ctx, grade=None, level=None):
 
             upgradeCut = up_percent[int(grade) - 1]
 
-            if CheckToday() == 3:
+            if todaymoa.CheckToday() == 3:
                 upgradeCut *= 2
 
             if dice < upgradeCut:
@@ -1197,19 +1174,19 @@ async def 의문의물건구매(ctx, grade=None, level=None):
                         gc1.cell(int(level) + 1, int(grade) + 1).value.replace(",", "")
                     )
 
-                    if CheckToday() == 1:
+                    if todaymoa.CheckToday() == 1:
                         buyPrice = math.floor(buyPrice * 0.6)
 
                     realPrice = math.floor(buyPrice * 0.8)
 
                     user = user.GetUserInfo(ctx, db)
 
-                    userfinance = user.child("재산").get()
+                    result, need = finance.ChangeMoney(user, -realPrice)
 
-                    if ChangeMoney(ctx, userfinance["money"], -realPrice) == -1:
-                        await ctx.send("모아가 부족합니다.")
+                    if result == -1:
+                        await ctx.send(f"{need} 모아가 부족합니다.")
                     else:
-                        GetUnknown(user, grade, level)
+                        inventory.GetUnknown(user, grade, level)
                         unknown_trade.update(
                             {mainkeyname: unknown_trade_dict[mainkeyname] - 1}
                         )
@@ -1222,18 +1199,6 @@ async def checkunknown(unknown_have, ctx):
     if unknown_have == None:
         await ctx.send("의문의 물건을 가지고 있지 않습니다.")
         return -1
-
-
-def GetUnknown(userdir, itemgrade, itemlevel):
-    haveInfo = userdir.child(f"inventory/의문의 물건/등급{itemgrade}")
-
-    if haveInfo.get() == None:
-        haveInfo.update({f"레벨{itemlevel}": 1})
-    else:
-        if f"레벨{itemlevel}" in haveInfo.get().keys():
-            haveInfo.update({f"레벨{itemlevel}": haveInfo.get()[f"레벨{itemlevel}"] + 1})
-        else:
-            haveInfo.update({f"레벨{itemlevel}": 1})
 
 
 @bot.command()
@@ -1250,7 +1215,7 @@ async def 의문의물건판매(ctx, grade=None, level=None, plus30=None):
 
     user_ref = user.GetUserInfo(ctx, db)
 
-    unknown_have = reinforce.GetUnknown(user_ref, f"/등급{grade}")
+    unknown_have = reinforce.GetUnknownHave(user_ref, f"/등급{grade}")
     unknown_dict = unknown_have.get()
     if await checkunknown(unknown_have, ctx) == -1:
         return
@@ -1283,7 +1248,7 @@ async def 의문의물건판매(ctx, grade=None, level=None, plus30=None):
                     {f"레벨{level}": unknown_dict[f"레벨{level}"] - 1}
                 )
 
-            if CheckToday() == 4:
+            if todaymoa.CheckToday() == 4:
                 todayUp = 1.2
             else:
                 todayUp = 1
@@ -1398,7 +1363,7 @@ async def 주사위(ctx, mode=None, money=None):
             await ctx.send("가입을 해주세요.")
             return
 
-        if CheckToday() == 5:
+        if todaymoa.CheckToday() == 5:
             multiple = 12
         else:
             multiple = 1
@@ -1430,17 +1395,8 @@ async def UpdateDice(ctx, users, result, multiple):
 
 @bot.command()
 async def 오늘의모아봇(ctx):
-    todayBenefit = {
-        0: "배팅 성공률 5%p 증가",
-        1: "의문의 물건 구매비용 40% 할인",
-        2: "강화 비용 20% 할인",
-        3: "등급업 확률 2배",
-        4: "의문의 물건 판매비용 20% 증가",
-        5: "오늘의 주사위 지급 모아 12배",
-        6: "구걸 10배",
-    }
 
-    await ctx.send(todayBenefit[CheckToday()])
+    await ctx.send()
 
 
 @bot.command()
