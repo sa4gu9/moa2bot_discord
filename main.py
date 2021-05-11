@@ -98,6 +98,7 @@ async def on_message(message):
     for mention in message.mentions:
         if mention.id == 768372057414565908:
             await message.channel.send("답장받음")
+
     await bot.process_commands(message)
 
 
@@ -181,7 +182,7 @@ async def 베팅(ctx, mode=None, moa=10000):
         await ctx.send(f"가입이 필요합니다.")
     else:
 
-        money, nickname = ReturnInfo(ctx)
+        money, nickname = user.ReturnInfo(ctx, db)
 
         if money <= 0:
             await ctx.send("베팅할 모아가 없습니다.")
@@ -293,7 +294,7 @@ async def 구걸(ctx):
         if todaymoa.CheckToday() == 6:
             getmoa *= 10
 
-        money, nickname = ReturnInfo(ctx)
+        money, nickname = user.ReturnInfo(ctx, db)
 
         if money > 0:
             await ctx.send("0모아를 가지고 있어야 구걸할수 있습니다.")
@@ -347,255 +348,195 @@ async def 비밀번호(ctx):
 
 
 @bot.command()
-async def 상자열기(ctx, boxName, amount=1):
-    if int(amount) > 10:
-        await ctx.send("10개를 넘겨서 열수 없습니다.")
-        return
+async def 상자열기(ctx, boxName):
     direct = None
     realLuck = None
 
     userdir = user.GetUserInfo(ctx, db)
-    direct = userdir.child("inventory").get()
+    direct = userdir.child("inventory")
 
     if userdir.get() == None:
         await ctx.send("가입을 해주세요.")
         return
 
-    if not boxName in direct.keys():
+    if not boxName in direct.get().keys():
         await ctx.send("가지고 있지 않거나 잘못된 이름입니다.")
         return
-    else:
-        if direct[boxName] - int(amount) >= 0:
-            if direct[boxName] - int(amount) == 0:
-                userdir.child("inventory").update({boxName: None})
-            else:
-                userdir.child("inventory").update(
-                    {boxName: direct[boxName] - int(amount)}
-                )
-        else:
-            await ctx.send("부족")
+
+    money, nickname = user.ReturnInfo(ctx, db)
+
+    if str(boxName).startswith("의문의 물건 상자"):
+        unknowndict = direct.child("의문의 물건").get()
+        if unknowndict != None:
+            await ctx.send("의문의 물건을 가지고 있습니다.")
             return
+        cluck = [70, 27, 3]
+        bluck = [0, 70, 30]
+        aluck = [0, 0, 100]
 
-    for i in range(int(amount)):
+        if str(boxName).endswith("A"):
+            realLuck = aluck
+        elif str(boxName).endswith("B"):
+            realLuck = bluck
+        elif str(boxName).endswith("C"):
+            realLuck = cluck
 
-        money, nickname = ReturnInfo(ctx)
+        percent = []
 
-        if str(boxName).startswith("의문의 물건 상자"):
-            cluck = [60, 30, 10]
-            bluck = [0, 80, 20]
-            aluck = [0, 0, 100]
+        itemlevel = 0
 
-            if str(boxName).endswith("A"):
-                realLuck = aluck
-            elif str(boxName).endswith("B"):
-                realLuck = bluck
-            elif str(boxName).endswith("C"):
-                realLuck = cluck
+        percent.clear()
+        result = random.random() * 100
 
-            percent = []
+        cut = 0
 
-            itemgrade = 0
-            itemlevel = 0
+        result = random.random() * 100
 
-            minlevel = [1, 10, 20]
-            maxlevel = [10, 20, 30]
+        levelcut = [38, 28, 18, 8, 3, 1, 1, 1, 1, 1]
+        cut = 0
+        levelp = 1
 
-            percent.clear()
-            result = random.random() * 100
+        level10 = 0
 
-            cut = 0
-            itemgrade = 0
-            currentGrade = 0
+        for i in realLuck:
+            cut += i
+            print(cut)
+            print(result)
+            if result < cut:
+                percent.append(i / 100)
+                break
+            level10 += 1
 
-            for currentCut in realLuck:
-                cut += currentCut
-                itemgrade += 1
+        cut = 0
 
-                if result < cut:
-                    currentGrade = itemgrade
-                    percent.append(currentCut / 100)
-                    break
+        result = random.random() * 100
 
-            result = random.random() * 100
+        for i in levelcut:
+            cut += i
+            if result < cut:
+                percent.append(i / 100)
+                itemlevel = level10 * 10 + levelp
+                break
+            else:
+                levelp += 1
 
-            levelcut = [40, 23, 17, 11, 5, 3]
-            cut = 0
-            levelp = 0
+        percentcalc = 0
 
-            for i in levelcut:
-                cut += i
-                if result < cut:
-                    percent.append(i / 100)
-                    itemlevel = minlevel[itemgrade - 1] + levelp
-                    break
-                else:
-                    levelp += 1
+        percentcalc = percent[0] * percent[1] * 100
 
-            if levelp == 6:
-                percent.append(0.01)
-                percent.append(
-                    maxlevel[itemgrade - 1] - (minlevel[itemgrade - 1] + levelp) + 1
-                )
-                itemlevel = random.randint(
-                    minlevel[itemgrade - 1] + levelp, maxlevel[itemgrade - 1]
-                )
+        if itemlevel == 30:
+            userdir.child("titles").update({str(len(userdir.child("titles").get())): 1})
+            await ctx.send(f"{nickname} [완벽을 뽑은 자] 칭호 획득!")
 
-            percentcalc = 0
+        await ctx.send(
+            f"의문의 물건 {itemlevel}강({(format(percentcalc,'''.3f''')).rstrip('0')}%) 획득!"
+        )
 
-            if len(percent) == 2:
-                percentcalc = percent[0] * percent[1] * 100
-            elif len(percent) == 3:
-                percentcalc = percent[0] * percent[1] / percent[2] * 100
-
-            if itemlevel == 30 and itemgrade == 6:
-                userdir.child("titles").update(
-                    {str(len(userdir.child("titles").get())): 1}
-                )
-                await ctx.send(f"{nickname} [완벽을 뽑은 자] 칭호 획득!")
-
-            await ctx.send(
-                f"의문의 물건 등급{itemgrade} {itemlevel}강({(format(percentcalc,'''.3f''')).rstrip('0')}%) 획득!"
-            )
-
-            inventory.GetUnknown(userdir, itemgrade, itemlevel)
+        inventory.ChangeUnknown(userdir, 1, itemlevel)
 
 
+@commands.cooldown(1, 4, commands.BucketType.user)
 @bot.command()
-async def 강화(ctx, grade=None, level=None):
-    try:
-        user_ref = user.GetUserInfo(ctx, db)
-        minlevel = [1, 10, 20]
-        maxlevel = [10, 20, 30]
+async def 강화(ctx, level=None):
+    maxlevel = 37
+    user_ref = user.GetUserInfo(ctx, db)
 
-        if grade == "destroy":
-            unknown_have = reinforce.GetUnknownHave(user_ref, "/destroy")
-            unknown_dict = unknown_have.get()
+    unknown_have = reinforce.GetUnknownHave(user_ref)
+    unknown_dict = unknown_have.get()
 
-            if await checkunknown(unknown_have, ctx) == -1:
-                return
-
-            embed = discord.Embed(title=f"보유중인 파괴 된 의문의 물건")
-
-            for i in unknown_dict.keys():
-                embed.add_field(name=f"{i}", value=unknown_dict[i])
-            await ctx.send(embed=embed)
+    if level != None:
+        level = int(level)
+        if level >= maxlevel:
+            await ctx.send("강화를 할 수 없는 레벨입니다.")
             return
+        prolist = []
+        proba = reinforce.GetProbability(int(level))
+        prolist.append("성공" + format(proba[0], ".2f"))
+        prolist.append("변화없음" + format(proba[1], ".2f"))
+        prolist.append("실패" + format(proba[2], ".2f"))
+        prolist.append("파괴" + format(proba[3], ".2f"))
+        prolist.append("강화 비용" + str(reinforce.GetCost(int(level))))
+        await ctx.send(prolist)
+        return
 
-        grade = int(grade)
+    if unknown_have == None:
+        await ctx.send("의문의 물건을 가지고 있지 않습니다.")
+        return
 
-        if grade < 1 or grade > 3:
-            await ctx.send("의문의 물건은 1~3등급입니다.")
+    level = unknown_dict["level"]
 
-        unknown_have = reinforce.GetUnknownHave(user_ref, f"/등급{grade}")
-        destroy_have = reinforce.GetUnknownHave(user_ref, "/destroy")
+    if level == maxlevel:
+        await ctx.send("현재 레벨은 최고 레벨입니다.")
+        return
 
-        unknown_dict = unknown_have.get()
-        destroy_dict = destroy_have.get()
+    money, nickname = user.ReturnInfo(ctx, db)
 
-        if await checkunknown(unknown_dict, ctx) == -1:
-            return
+    # 강화 비용을 구한다.
+    price = reinforce.GetCost(level)
 
-        if level == None:
-            # 보유중인 의문의 물건을 보여줌
-            embed = discord.Embed(title=f"보유중인 의문의 물건 등급{grade}")
+    if todaymoa.CheckToday() == 2:
+        price = math.floor(price * 0.8)
 
-            for i in unknown_have.keys():
-                embed.add_field(name=f"{i}", value=unknown_have[i])
-            await ctx.send(embed=embed)
+    # 가지고 있는 돈보다 강화 비용이 많으면 강화 불가
+    if price > money:
+        await ctx.send(f"{price-money}모아가 부족합니다. 강화 비용 : {price}모아")
+        return
 
-        else:
-            level = int(level)
+    # 강화를 한다.
+    change = reinforce.DoReinfoce(level)[0]
 
-            if level < minlevel[grade - 1] and grade >= 2 and grade <= 3:
-                reinforce.CheckUnknown(grade, level, unknown_have, unknown_dict, 1)
-                await ctx.send(
-                    f"등급{grade}는 최소레벨이 {minlevel[grade - 1]}이므로 {level}이 {minlevel[grade - 1]}이 되었습니다."
-                )
+    reinforceInfo = {0: "아무 변화가 없었다...", 1: "성공!", -1: "실패", -10: "파괴..."}
 
-                return
-            elif grade >= 4:
-                await ctx.send("강화 개선으로 인해 등급4 이상은 강화가 불가능합니다. 추후 보상 예정입니다.")
-                return
+    if change != -10:
+        afterLevel = level + change
+    else:
+        afterLevel = "destroy"
+    await ctx.send(f"{nickname} {reinforceInfo[change]} {level} >> {afterLevel}")
 
-            if level > maxlevel[grade - 1] or level < minlevel[grade - 1]:
-                await ctx.send(
-                    f"등급{grade}는 {minlevel[grade-1]}강이상 +{maxlevel[grade-1]}강이하 입니다."
-                )
-
-                return
-
-            if f"레벨{level}" in unknown_have.keys():
-                if level == maxlevel[grade - 1]:
-                    if grade < 3:
-                        await ctx.send("현재 레벨은 현재 등급의 최고 레벨입니다. 등급업을 해주세요.")
-                        return
-                    elif grade == 3:
-                        await ctx.send("최고 등급의 최고 레벨은 강화를 할 수 없습니다.")
-                        return
-
-                money, nickname = ReturnInfo(ctx)
-
-                # 강화 비용을 구한다.
-                price = math.floor(1000 * ((50 * level) ** (0.05 * level)))
-
-                if todaymoa.CheckToday() == 2:
-                    price = math.floor(price * 0.8)
-
-                # 가지고 있는 돈보다 강화 비용이 많으면 강화 불가
-                if price > money:
-                    await ctx.send(f"{price-money}모아가 부족합니다. 강화 비용 : {price}모아")
-                    return
-
-                # 강화를 한다.
-                change = reinforce.DoReinfoce(level)
-
-                reinforceInfo = {0: "아무 변화가 없었다...", 1: "성공!", -1: "실패", -10: "파괴..."}
-
-                await ctx.send(reinforceInfo[change])
-
-                if change == 1:
-                    await asyncio.sleep(3)
-                    result = random.random() * 100
-                    if result < 20:
-                        result = random.random() * 100
-                        change = 2
-                        await ctx.send(f"크리티컬 강화 성공!!")
-
-                if change == -10:
-                    des_dict = destroy_have.get()
-                    if des_dict == None:
-                        destroy_have.set({f"등급{grade}": 1})
-                    else:
-                        if grade != 1:
-                            if f"등급{grade}" in des_dict.keys():
-                                des_dict[f"등급{grade}"] += 1
-                            else:
-                                des_dict[f"등급{grade}"] = 1
-
-                            destroy_have.set(des_dict)
-
-                # change값에 따라 db를 바꾼다. 단, change가 0이면 바꾸지 않는다.
-
-                inventory.LostUnknown(user_ref, grade, level)
-
-                inventory.GetUnknown(user_ref, grade, level + change)
-
-                # 현재 가지고 있는 돈에서 강화비용을 빼고 firebase에 올린다.
-                finance.ChangeMoney(user_ref, -price)
-
+    if change == 1:
+        if todaymoa.CheckToday() == 3:
+            if level <= 20:
+                change += 1
+                await ctx.send(f"오늘의 모아봇 적용 {afterLevel} >> {afterLevel+1}")
+        await asyncio.sleep(2)
+        result = random.random() * 100
+        if result < 20:
+            plus = 0
+            if todaymoa.CheckToday() == 1:
+                change = 3
+                plus = 2
             else:
-                await ctx.send("입력한 레벨의 의문의 물건을 가지고 있지 않습니다.")
+                change = 2
+                plus = 1
+            await ctx.send(f"크리티컬 강화 성공!! {afterLevel} >> {afterLevel+plus}")
 
-    except Exception as e:
-        await ctx.send("의문의 물건 등급 또는 레벨을 숫자로 입력해주세요.")
-        print(e)
+    # change값에 따라 db를 바꾼다. 단, change가 0이면 바꾸지 않는다.
+
+    if change != -10:
+        inventory.ChangeUnknown(user_ref, 1, level + change)
+    else:
+        inventory.ChangeUnknown(user_ref, 2)
+
+    # 현재 가지고 있는 돈에서 강화비용을 빼고 firebase에 올린다.
+    finance.ChangeMoney(user_ref, -price)
+
+
+@강화.error
+async def rein_error(ctx, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        msg = "This command is ratelimited, please try again in {:.2f}s".format(
+            error.retry_after
+        )
+        await ctx.send(msg)
+    else:
+        raise error
 
 
 @bot.command()
 async def 코인(ctx, coinnName=None, mode=None, amount=None):
     try:
-        # await ctx.send("현재 이용할 수 없습니다.")
-        # return
+        await ctx.send("현재 이용할 수 없습니다.")
+        return
         coin_ref = db.reference("coins")
 
         selectCoin_ref = None
@@ -631,7 +572,7 @@ async def 코인(ctx, coinnName=None, mode=None, amount=None):
         coin_ref = fin_ref.child("coins")
         coinDict = coin_ref.get()
 
-        money, nickname = ReturnInfo(ctx)
+        money, nickname = user.ReturnInfo(ctx, db)
 
         if coinDict == None:
             have = 0
@@ -869,17 +810,6 @@ async def test():
             )
 
 
-def ReturnInfo(ctx):
-    refer = user.GetUserInfo(ctx, db)
-
-    userinfo = refer.get()
-
-    money = userinfo["재산"]["money"]
-    nickname = userinfo["nickname"]
-
-    return money, nickname
-
-
 @bot.command()
 async def 상점(ctx, itemName=None, amount=1):
     store_ref = db.reference(f"servers/server{ctx.guild.id}/store")
@@ -888,104 +818,13 @@ async def 상점(ctx, itemName=None, amount=1):
 
     curVersion = db.reference("version").get()["store"]
 
-    store.UseStore(store_ref, storeInfo, curVersion, ctx, itemName, db, user, amount)
+    await store.UseStore(
+        store_ref, storeInfo, curVersion, ctx, itemName, db, user, amount
+    )
 
 
 def Additem(itemName):
     return
-
-
-@bot.command()
-async def 등급업(ctx, grade=None, level=None):
-
-    user_ref = user.GetUserInfo(ctx, db)
-    minlevel = [1, 10, 20]
-
-    if grade == "3":
-        await ctx.send("최고등급입니다.")
-        return
-
-    unknown_have = reinforce.GetUnknownHave(user_ref, f"/등급{grade}")
-    unknown_dict = unknown_have.get()
-    if await checkunknown(unknown_dict, ctx) == -1:
-        return
-
-    # 레벨의 물건을 가지고 있는지, 그것의 레벨이 다음단계의 최소 단계를 이상인지 체크한다
-    if f"레벨{level}" in unknown_dict.keys():
-        price = 7000
-        if int(level) >= minlevel[int(grade)]:
-            result, need = finance.ChangeMoney(user_ref, -price)
-
-            if result == -1:
-                await ctx.send(f"{need}모아가 부족합니다.")
-                return
-
-            up_percent = [4, 0.5]
-            dice = random.random() * 100
-
-            upgradeCut = up_percent[int(grade) - 1]
-
-            if todaymoa.CheckToday() == 3:
-                upgradeCut *= 2
-
-            if dice < upgradeCut:
-
-                # 의문의 물건 보유 정보 수정
-                unknown_dict[f"레벨{level}"] -= 1
-                if unknown_dict[f"레벨{level}"] == 0:
-                    user_ref.child(f"inventory/의문의 물건/등급{grade}").update(
-                        {f"레벨{level}": None}
-                    )
-
-                # 등급업한 의문의 물건 데이터 반영
-                upgrade_have = user_ref.child(
-                    f"inventory/의문의 물건/등급{int(grade)+1}"
-                ).get()
-
-                if upgrade_have == None:
-                    user_ref.child(f"inventory/의문의 물건/등급{int(grade)+1}").update(
-                        {f"레벨{level}": 1}
-                    )
-                else:
-                    if f"레벨{level}" in upgrade_have.keys():
-                        user_ref.child(f"inventory/의문의 물건/등급{int(grade)+1}").update(
-                            {f"레벨{level}": upgrade_have[f"레벨{level}"] + 1}
-                        )
-                    else:
-                        user_ref.child(f"inventory/의문의 물건/등급{int(grade)+1}").update(
-                            {f"레벨{level}": 1}
-                        )
-
-                giveItemName = "의문의 물건 판매가격 30% 증가권"
-                inventory = user_ref.child("inventory").get()
-
-                if giveItemName in inventory.keys():
-                    user_ref.child("inventory").update(
-                        {giveItemName: inventory[giveItemName] + 1}
-                    )
-                else:
-                    user_ref.child("inventory").update({giveItemName: 1})
-
-                await ctx.send(f"success! {giveItemName} 지급!")
-
-                giveMoney = price * (200 // up_percent[int(grade) - 1])
-
-                user_ref.child("재산").update(
-                    {"money": user_ref.child("재산").get()["money"] + giveMoney}
-                )
-
-                await ctx.send(f"등급업 성공 보상으로 {giveMoney}모아 지급")
-
-            else:
-                await ctx.send("fail")
-        else:
-            await ctx.send(
-                f"등급업이 가능한 레벨이 아닙니다. 등급{grade} 레벨{minlevel[int(grade)]}이상 가능"
-            )
-            return
-    else:
-        await ctx.send("해당 레벨의 의문의 물건을 가지고 있지 않습니다.")
-        return
 
 
 @bot.command()
@@ -1114,130 +953,114 @@ async def 칭호(ctx, setn=None):
 
 
 @bot.command()
-async def 의문의물건구매(ctx, grade=None, level=None):
+async def 의문의물건구매(ctx, level=None):
+    user1 = user.GetUserInfo(ctx, db)
+    unknown_have = reinforce.GetUnknownHave(user1).get()
+    realPrice = 0
+    wantString = None
+
+    priceDict = {}
     unknown_trade = db.reference("unknown_trade")
 
     unknown_trade_dict = unknown_trade.get()
 
-    mainkeyname = f"{grade}_{level}"
+    for key in unknown_trade_dict.keys():
+        templevel = unknown_trade_dict[key].split("_")[0]
+        tempprice = int(unknown_trade_dict[key].split("_")[1])
+        if templevel in priceDict.keys():
+            if priceDict[f"level{templevel}"] > tempprice:
+                priceDict[f"level{templevel}"] = tempprice
 
-    if grade == None:
-        for key in unknown_trade_dict.keys():
-            await ctx.send(
-                f"grade : {key.split('_')[0]} level : {key.split('_')[1]} amount : {unknown_trade_dict[key]}"
+                if level != None:
+                    if templevel == level:
+                        realPrice = tempprice
+                        wantString = key
+                        print(wantString)
+        else:
+            priceDict[f"level{templevel}"] = tempprice
+
+            if level != None:
+                if templevel == level:
+                    realPrice = tempprice
+                    wantString = key
+                    print(wantString)
+
+    if level == None:
+        for level in priceDict.keys():
+            await ctx.send(f"{level}의 최저가 : {priceDict[level]}")
+
+        return
+
+    if unknown_have != None:
+        await ctx.send("의문의 물건을 가지고 있습니다.")
+        return
+
+    if f"level{level}" in priceDict.keys():
+
+        result, need = finance.ChangeMoney(user1, -realPrice)
+
+        if result == -1:
+            await ctx.send(f"{need} 모아가 부족합니다.")
+        else:
+
+            sellUser = wantString.split("_")
+            userRef = db.reference(
+                f"servers/server{sellUser[1]}/users/user{sellUser[2]}"
+            ).child("재산")
+            userRef.update({"money": userRef.get()["money"] + realPrice})
+            await ctx.send(f"level{level}의 최저가 {realPrice} 모아에 구매완료")
+            unknown_trade.update({wantString: None})
+            inventory.ChangeUnknown(user1, 1, int(level))
+            servername = bot.get_guild(int(sellUser[1])).name
+            await bot.get_user(int(sellUser[2])).send(
+                f"{servername}에서 올린 의문의 물건 {level}강이 팔려 {realPrice}모아가 지급되었습니다."
             )
     else:
-        if level == None:
-            for key in unknown_trade_dict.keys():
-                if key[0] == grade:
-                    await ctx.send(
-                        f"level : {key.split('_')[1]} amount : {unknown_trade_dict[key]}"
-                    )
-        else:
-            if f"{grade}_{level}" in unknown_trade_dict.keys():
-                if unknown_trade_dict[mainkeyname] > 0:
-                    gc1 = gc.open("모아2봇 확률표").worksheet("의문의 물건 기댓값")
-                    buyPrice = int(
-                        gc1.cell(int(level) + 1, int(grade) + 1).value.replace(",", "")
-                    )
-
-                    if todaymoa.CheckToday() == 1:
-                        buyPrice = math.floor(buyPrice * 0.6)
-
-                    realPrice = math.floor(buyPrice * 0.8)
-
-                    user = user.GetUserInfo(ctx, db)
-
-                    result, need = finance.ChangeMoney(user, -realPrice)
-
-                    if result == -1:
-                        await ctx.send(f"{need} 모아가 부족합니다.")
-                    else:
-                        inventory.GetUnknown(user, grade, level)
-                        unknown_trade.update(
-                            {mainkeyname: unknown_trade_dict[mainkeyname] - 1}
-                        )
-                        await ctx.send("구매완료")
-                else:
-                    await ctx.send("재고 없음")
+        await ctx.send("재고 없음")
 
 
-async def checkunknown(unknown_have, ctx):
-    if unknown_have == None:
-        await ctx.send("의문의 물건을 가지고 있지 않습니다.")
-        return -1
-
-
+@commands.cooldown(1, 10, commands.BucketType.user)
 @bot.command()
-async def 의문의물건판매(ctx, grade=None, level=None, plus30=None):
+async def 의문의물건판매(ctx, price=None):
+    now = datetime.datetime.now()
     if ctx.guild.id == 712186772846542889:
         await ctx.send("여기서 판매 허용하면 경제 망가진다 ㄹㅇ ㅋㅋ")
         return
-    if plus30 == None:
-        await ctx.send("사용할 의문의 물건 판매가격 30% 증가권의 개수를 입력해주세요.")
+
+    if price == None:
+        await ctx.send("판매할 가격을 입력해주세요.")
         return
 
-    gc1 = gc.open("모아2봇 확률표").worksheet("의문의 물건 기댓값")
-    sellPrice = int(gc1.cell(int(level) + 1, int(grade) + 1).value.replace(",", ""))
+    year = now.year
+    month = "%02d" % now.month
+    day = "%02d" % now.day
+
+    hour = "%02d" % now.hour
+    minute = "%02d" % now.minute
+    second = "%02d" % now.second
 
     user_ref = user.GetUserInfo(ctx, db)
 
-    unknown_have = reinforce.GetUnknownHave(user_ref, f"/등급{grade}")
+    unknown_have = reinforce.GetUnknownHave(user_ref)
     unknown_dict = unknown_have.get()
-    if await checkunknown(unknown_have, ctx) == -1:
+
+    level = unknown_dict["level"]
+
+    if level == 30:
+        await ctx.send(f"더이상 강화를 할 수 없어 거래시장에 올릴 수 없습니다. 추후 방안에 대해 고민하겠습니다.")
         return
-    else:
-        if int(plus30) >= int(grade) or int(plus30) < 0:
-            await ctx.send(f"등급{grade}은 0~{int(grade)-1}장 이하까지 적용 가능합니다.")
-            return
-        else:
-            inventory = user_ref.child(f"inventory").get()
-            itemname = "의문의 물건 판매가격 30% 증가권"
-            if itemname in inventory.keys():
-                if inventory[itemname] - int(plus30) >= 0:
-                    user_ref.child(f"inventory").update(
-                        {itemname: inventory[itemname] - int(plus30)}
-                    )
-                else:
-                    await ctx.send(f"{itemname}이 부족합니다.")
-                    return
 
-        if f"레벨{level}" in unknown_dict.keys():
-            inventory.LostUnknown(user_ref, grade, level)
+    inventory.ChangeUnknown(user_ref, 2)
 
-            if todaymoa.CheckToday() == 4:
-                todayUp = 1.2
-            else:
-                todayUp = 1
+    unknown_trade = db.reference("unknown_trade")
 
-            givePrice = math.floor(sellPrice * todayUp * 0.6 * (1.3 ** (int(plus30))))
+    unknown_trade.update(
+        {
+            f"{year}{month}{day}{hour}{minute}{second}_{ctx.guild.id}_{ctx.author.id}": f"{level}_{price}"
+        }
+    )
 
-            user_ref.child("재산").update(
-                {"money": user_ref.child("재산").get()["money"] + givePrice}
-            )
-
-            if int(level) == 30 and int(grade) == 6:
-                await ctx.send(f"더이상 강화 또는 등급업을 할 수 없어 거래시장에 올려지지 않고 모아만 지급됩니다.")
-                return
-
-            unknown_trade = db.reference("unknown_trade")
-
-            unknown_trade_dict = unknown_trade.get()
-
-            if unknown_trade_dict == None:
-                unknown_trade.update({f"{grade}_{level}": 1})
-            else:
-                if f"{grade}_{level}" in unknown_trade_dict.keys():
-                    unknown_trade.update(
-                        {f"{grade}_{level}": unknown_trade_dict[f"{grade}_{level}"] + 1}
-                    )
-                else:
-                    unknown_trade.update({f"{grade}_{level}": 1})
-
-            await ctx.send("판매 완료")
-        else:
-            await ctx.send("해당 레벨의 의문의 물건을 가지고 있지 않습니다.")
-            return
+    await ctx.send("판매 완료, 다른사람이 구매시 모아가 들어옵니다.")
 
 
 @bot.command()
@@ -1301,11 +1124,11 @@ async def 주사위(ctx, mode=None, money=None):
         await ctx.send(result)
     elif int(mode) == 1:
         users = user.GetUserInfo(ctx, db)
-        today = users.child("today").get()
-
-        if today == None:
+        if users.get() == None:
             await ctx.send("가입을 해주세요.")
             return
+
+        today = users.child("today").get()
 
         if todaymoa.CheckToday() == 5:
             multiple = 12
@@ -1337,20 +1160,6 @@ async def UpdateDice(ctx, users, result, multiple, now):
 @bot.command()
 async def 오늘의모아봇(ctx):
     await ctx.send(todaymoa.GetToday())
-
-
-@bot.command()
-async def 의문의물건(ctx):
-    minlevel = [1, 10, 20]
-    maxlevel = [10, 20, 30]
-
-    sendtext = "```"
-
-    for i in range(6):
-        sendtext += f"등급{i+1} : {minlevel[i]}~{maxlevel[i]}\n"
-    sendtext += "```"
-
-    await ctx.send(sendtext)
 
 
 @bot.command()
@@ -1421,7 +1230,10 @@ async def 무료강화(ctx, Info=None):
     )
     reinData = freereinDB.get()
     if reinData == None:
-        freereinDB.update({f"level": 1, "fail": 0})
+        if todaymoa.CheckToday() == 4:
+            freereinDB.update({f"level": 2, "fail": 0})
+        else:
+            freereinDB.update({f"level": 1, "fail": 0})
         await ctx.send("강화 0>1 성공!")
     else:
         level = reinData[f"level"]
@@ -1431,7 +1243,10 @@ async def 무료강화(ctx, Info=None):
         change, success, bonus = reinforce.DoReinfoce(level, 2, reinData["fail"])
         if change != -10:
             if change == 1:
-                freereinDB.update({f"level": level + change, "fail": 0})
+                if todaymoa.CheckToday() == 4:
+                    freereinDB.update({f"level": level + 2, "fail": 0})
+                else:
+                    freereinDB.update({f"level": level + 1, "fail": 0})
 
             else:
                 freereinDB.update({f"fail": reinData["fail"] + 1})

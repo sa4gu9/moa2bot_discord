@@ -35,3 +35,14 @@ def GetAllServerUser(users):
     sendText += "```"
 
     return sendText
+
+
+def ReturnInfo(ctx,db):
+    refer = GetUserInfo(ctx, db)
+
+    userinfo = refer.get()
+
+    money = userinfo["재산"]["money"]
+    nickname = userinfo["nickname"]
+
+    return money, nickname

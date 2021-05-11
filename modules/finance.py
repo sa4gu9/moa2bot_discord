@@ -9,7 +9,7 @@ def ChangeMoney(user, moa):
     if fina["money"] + int(moa) < 0:
         return -1, int(moa) - fina["money"]
     userfinance.update({"money": fina["money"] + int(moa)})
-    return 1
+    return 1, 0
 
 
 def GetBeggingMoa():

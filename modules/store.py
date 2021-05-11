@@ -28,7 +28,7 @@ async def UseStore(store_ref, storeInfo, curVersion, ctx, itemName, db, user, am
             await ctx.send("상점에 없는 아이템입니다.")
         else:
             userInfo = user.GetUserInfo(ctx, db)
-            money, nickname = user.ReturnInfo(ctx)
+            money, nickname = user.ReturnInfo(ctx, db)
 
             if int(amount) > storeInfo[itemName]["amount"]:
                 await ctx.send("매진이거나 남은수량보다 많이 살 수 없습니다.")
